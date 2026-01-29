@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    container_name: api
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
