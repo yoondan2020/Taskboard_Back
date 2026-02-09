@@ -7,7 +7,7 @@ from app.schemas.user import UserRes, UserSimpleRes
 from app.models.user import User
 from app.services import user_service
 
-router = APIRouter(prefix="/api/lab/v1/users", tags=["Users"])
+router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/me", response_model=UserRes)
 def me(current_user: User = Depends(get_current_user)):

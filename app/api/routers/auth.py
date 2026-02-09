@@ -8,7 +8,7 @@ from app.core.security.jwt import create_access_token
 from app.db import get_db  
 from app.models.user import User  
 
-router = APIRouter(prefix="/api/lab/v1/auth", tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/login", response_model=LoginRes)
 def login(payload: LoginReq, db: Session = Depends(get_db)):

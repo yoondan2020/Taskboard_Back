@@ -23,7 +23,7 @@ app = FastAPI(
     debug=settings.DEBUG,
     )
 
-API_PREFIX = "/api/lab/v1"
+API_PREFIX = "/api/v1"
 api = APIRouter(prefix=API_PREFIX)
 
 api.include_router(projects.router)
@@ -32,8 +32,8 @@ api.include_router(states.router)
 api.include_router(product_group.router)
 api.include_router(project_stage.router)
 api.include_router(project_history.router)
-app.include_router(auth.router)
-app.include_router(users.router)
+api.include_router(auth.router)
+api.include_router(users.router)
 
 app.include_router(api)
 
