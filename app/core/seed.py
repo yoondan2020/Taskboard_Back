@@ -6,7 +6,6 @@ from app.models.state import State
 from app.models.product_group import ProductGroup
 from app.models.user import User
 from app.models.project import Project
-from app.models.project_stage import ProjectStage
 from app.models.enums import UserRole
 from app.core.security.password import hash_password
 from datetime import datetime, timedelta
@@ -17,16 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 # ===== 참조 데이터 =====
-STAGE_NAMES = [
-    "기획", 
-    "샘플 제작", 
-    "샘플 수주", 
-    "도면 완료", 
-    "도면 적용", 
-    "개발 완료", 
-    "품의 대기"
-]
-
 STATE_NAMES = [
     "PLANNED",      # ID: 1 (PLANNED)
     "IN_PROGRESS",   # ID: 2 (IN_PROGRESS)
@@ -35,64 +24,64 @@ STATE_NAMES = [
 ]
 
 PRODUCT_GROUP_NAMES = [
+    "기획",
     "개발",
-    "협업",
-    "원가절감",
-    "특허",
-    "설계변경",
     "디자인",
+    "마케팅",
+    "운영",
+    "분석",
     "기타"
 ]
 
+
 TEST_USERS = [
     {
-        "email": "admin@lab.com",
-        "name": "Admin",
+        "email": "admin@example.com",
+        "name": "관리자",
         "password": "admin1234",
         "role": UserRole.ADMIN,
-        "department": "",
+        "department": "경영지원",
         "position": "관리자",
     },
     {
-        "email": "head@lab.com",
-        "name": "Lab Head",
-        "password": "head1234",
-        "role": UserRole.LAB_HEAD,
-        "department": "연구소",
-        "position": "연구소장",
+        "email": "kim@example.com",
+        "name": "김철수",
+        "password": "user1234",
+        "role": UserRole.MEMBER,
+        "department": "개발팀",
+        "position": "시니어",
     },
     {
-        "email": "member1@lab.com",
-        "name": "Member1",
-        "password": "member1234",
+        "email": "lee@example.com",
+        "name": "이영희",
+        "password": "user1234",
         "role": UserRole.MEMBER,
-        "department": "연구소",
-        "position": "사원",
+        "department": "디자인팀",
+        "position": "주니어",
     },
     {
-        "email": "member2@lab.com",
-        "name": "Member2",
-        "password": "member1234",
+        "email": "park@example.com",
+        "name": "박민수",
+        "password": "user1234",
         "role": UserRole.MEMBER,
-        "department": "연구소",
-        "position": "사원",
+        "department": "마케팅팀",
+        "position": "시니어",
     },
     {
-        "email": "member3@lab.com",
-        "name": "Member3",
-        "password": "member1234",
+        "email": "choi@example.com",
+        "name": "최지우",
+        "password": "user1234",
         "role": UserRole.MEMBER,
-        "department": "연구소",
-        "position": "사원",
+        "department": "기획팀",
+        "position": "매니저",
     },
 ]
 
 
 def seed_states(db: Session) -> None:
-    """
-    State 참조 데이터 초기화
-    상태는 시스템에서 고정된 값이므로 upsert 방식 사용
-    """
+    # State 참조 데이터 초기화
+    # 상태는 시스템에서 고정된 값이므로 upsert 방식 사용
+
     logger.info("Seeding states...")
     
     for name in STATE_NAMES:
@@ -105,26 +94,9 @@ def seed_states(db: Session) -> None:
     logger.info(f"States seeded: {len(STATE_NAMES)} states")
 
 
-def seed_stages(db: Session) -> None:
-    """
-    Stage 참조 데이터 초기화
-    """
-    logger.info("Seeding stages...")
-    
-    for name in STAGE_NAMES:
-        exists = db.query(Stage).filter(Stage.name == name).first()
-        if not exists:
-            db.add(Stage(name=name))
-            logger.debug(f"Created stage: {name}")
-    
-    db.commit()
-    logger.info(f"Stages seeded: {len(STAGE_NAMES)} stages")
-
-
 def seed_product_groups(db: Session) -> None:
-    """
-    ProductGroup 참조 데이터 초기화
-    """
+    # ProductGroup 참조 데이터 초기화
+
     logger.info("Seeding product groups...")
     
     for name in PRODUCT_GROUP_NAMES:
@@ -138,10 +110,9 @@ def seed_product_groups(db: Session) -> None:
 
 
 def seed_test_users(db: Session) -> None:
-    """
-    테스트용 사용자 생성
-    개발/테스트 환경에서만 실행해야 함
-    """
+    # 테스트용 사용자 생성
+    # 개발/테스트 환경에서만 실행해야 함
+
     logger.info("Seeding test users...")
     
     for user_data in TEST_USERS:
@@ -167,9 +138,8 @@ def seed_test_users(db: Session) -> None:
 
 
 def seed_projects(db: Session) -> None:
-    """
-    테스트용 프로젝트 50개 생성
-    """
+    # 테스트용 프로젝트 50개 생성
+
     logger.info("Seeding projects...")
     
     # 기존 프로젝트 수 확인
@@ -189,16 +159,32 @@ def seed_projects(db: Session) -> None:
     
     # 프로젝트 제목 샘플
     project_titles = [
-        "프리미엄 의자", "스마트 조명", "무선 스피커", "포터블 배터리", "무선 충전기",
-        "스마트 온도계", "AI 카메라", "IoT 센서", "블루투스 헤드셋", "스마트 락",
-        "홈 허브", "스마트 플러그", "음성 어시스턴트", "드론", "VR 헤드셋",
-        "게이밍 마우스", "기계식 키보드", "웹캠", "마이크", "스피커",
-        "휴대용 프로젝터", "디지털 펜", "태블릿", "노트북", "모니터",
-        "그래픽 카드", "SSD", "RAM", "마더보드", "파워서플라이",
-        "케이블", "어댑터", "허브", "도킹 스테이션", "무선 라우터",
-        "메시 와이파이", "네트워크 카메라", "IP 폰", "PBX 시스템", "보안 시스템",
-        "출입통제", "화재감지기", "CCTV", "NVR", "DVR",
-        "LED 패널", "프로젝터", "디스플레이", "사이니지", "전자 수표판"
+    # 기획
+    "신규 서비스 기획", "사용자 요구사항 분석", "비즈니스 모델 설계", "로드맵 수립",
+    "프로세스 개선안", "신기능 검토", "정책 수립", "전략 수립",
+    
+    # 개발
+    "시스템 구축", "기능 개발", "성능 개선", "리팩토링",
+    "API 개발", "데이터베이스 설계", "테스트 자동화", "배포 환경 구축",
+    
+    # 디자인
+    "UI 디자인", "UX 개선", "프로토타입 제작", "디자인 가이드",
+    "브랜딩 작업", "레이아웃 설계", "인터랙션 설계", "비주얼 리뉴얼",
+    
+    # 마케팅
+    "캠페인 기획", "콘텐츠 제작", "채널 운영", "광고 집행",
+    "브랜드 홍보", "이벤트 기획", "파트너십 구축", "그로스 전략",
+    
+    # 운영
+    "프로세스 정립", "매뉴얼 작성", "품질 관리", "CS 개선",
+    "데이터 관리", "리소스 최적화", "모니터링 체계", "문서화",
+    
+    # 분석
+    "데이터 분석", "지표 설정", "리포트 작성", "사용자 조사",
+    "성과 측정", "시장 조사", "경쟁사 분석", "트렌드 분석",
+    
+    # 기타
+    "교육 프로그램", "인프라 구축", "보안 점검", "컨설팅"
     ]
     
     today = datetime.now().date()
@@ -228,90 +214,83 @@ def seed_projects(db: Session) -> None:
     logger.info(f"Projects seeded: 50 projects")
 
 
-def seed_project_stages(db: Session) -> None:
-    """
-    프로젝트별 단계 데이터 생성
-    각 프로젝트에 3~6개의 단계를 랜덤으로 할당
-    """
-    logger.info("Seeding project stages...")
+def seed_stages(db: Session) -> None:
+    # 프로젝트별 Stage 생성
+    # 각 프로젝트마다 3-5개의 단계 생성
+
+    logger.info("Seeding stages...")
     
-    # 기존 프로젝트 단계 수 확인
-    existing_count = db.query(ProjectStage).count()
+    # 기존 Stage 확인
+    existing_count = db.query(Stage).count()
     if existing_count > 0:
-        logger.debug(f"Project stages already exist: {existing_count} stages")
+        logger.debug(f"Stages already exist: {existing_count} stages")
         return
     
-    # 필요한 데이터 조회
     projects = db.query(Project).all()
-    stages = db.query(Stage).all()
     states = db.query(State).all()
     users = db.query(User).all()
     
-    if not projects or not stages or not states or not users:
-        logger.warning("Cannot seed project stages: missing dependencies")
+    if not projects or not states:
+        logger.warning("Cannot seed stages: missing dependencies")
         return
     
+    # 범용 단계명
+    stage_templates = [
+        ["요구사항 정리", "설계", "실행", "검토", "완료"],
+        ["기획", "개발", "테스트", "배포"],
+        ["조사", "분석", "제안", "실행", "평가"],
+        ["초안 작성", "검토", "수정", "최종 확인"],
+    ]
+    
     today = datetime.now().date()
-    total_stages = 0
     
     for project in projects:
-        # 프로젝트마다 3~6개의 단계를 랜덤으로 할당
-        num_stages = random.randint(3, min(6, len(stages)))
-        selected_stages = random.sample(stages, num_stages)
+        # 랜덤으로 템플릿 선택
+        template = random.choice(stage_templates)
         
-        for seq, stage in enumerate(selected_stages, 1):
-            # 랜덤 선택
+        for seq, stage_name in enumerate(template, 1):
+            # 랜덤 상태 할당
             state = random.choice(states)
-            stage_owner = random.choice(users)
             
-            # 계획일: 현재 + (seq * 10)일
-            planned_date = today + timedelta(days=seq * 10)
+            # 30% 확률로 담당자 할당
+            stage_owner = random.choice(users) if random.random() < 0.3 else None
             
-            # 실제 실행일: 70% 확률로 계획일 이후에 설정
-            act_date = None
-            if random.random() > 0.3:
-                act_date = planned_date + timedelta(days=random.randint(1, 5))
+            # 계획일: 프로젝트 목표일 기준으로 단계별 분배
+            if project.goal_due_date:
+                days_offset = (seq - 1) * 10
+                planned = project.goal_due_date - timedelta(days=(len(template) - seq) * 10)
+            else:
+                planned = None
             
-            # 완료 예정일: 실행일 이후 7~14일
-            eta = (act_date or planned_date) + timedelta(days=random.randint(7, 14))
-            
-            project_stage = ProjectStage(
+            stage = Stage(
+                name=stage_name,
                 project_id=project.id,
-                stage_id=stage.id,
                 state_id=state.id,
                 sequence=seq,
-                note=f"{stage.name} 작업 진행 중" if random.random() > 0.4 else None,
-                remark=None,
-                stage_owner_id=stage_owner.id,
-                planned_date=planned_date,
-                act_date=act_date,
-                eta=eta,
+                note=f"{stage_name} 단계",
+                stage_owner_id=stage_owner.id if stage_owner else None,
+                planned_date=planned,
             )
-            db.add(project_stage)
-            total_stages += 1
-        
-        logger.debug(f"Created {num_stages} stages for project: {project.title}")
+            db.add(stage)
     
     db.commit()
-    logger.info(f"Project stages seeded: {total_stages} total stages")
-
+    stage_count = db.query(Stage).count()
+    logger.info(f"Stages seeded: {stage_count} stages")
 
 def seed_database() -> None:
-    """
-    데이터베이스 초기 데이터 seeding 메인 함수
-    앱 시작 시 자동 실행됨
-    """
+    # 데이터베이스 초기 데이터 seeding 메인 함수
+    # 앱 시작 시 자동 실행됨
+
     logger.info("Starting database seeding...")
     
     db = SessionLocal()
     try:
         # 순서 중요: 의존성이 없는 것부터
         seed_states(db)
-        seed_stages(db)
         seed_product_groups(db)
         seed_test_users(db)
         seed_projects(db)
-        seed_project_stages(db)
+        seed_stages(db)
         
         logger.info("Database seeding completed successfully!")
         
@@ -325,15 +304,14 @@ def seed_database() -> None:
 
 # ===== 유틸리티 함수 =====
 def reset_seed_data() -> None:
-    """
-    테스트용: Seed 데이터 초기화
-    """
+    # 테스트용: Seed 데이터 초기화
+
     logger.warning("Resetting seed data - ALL DATA WILL BE DELETED!")
     
     db = SessionLocal()
     try:
         # 역순으로 삭제
-        db.query(ProjectStage).delete()
+        db.query(Stage).delete()
         db.query(Project).delete()
         db.query(User).delete()
         db.query(ProductGroup).delete()
@@ -345,9 +323,11 @@ def reset_seed_data() -> None:
         seed_database()
         
         logger.info("Seed data reset completed")
+
     except Exception as e:
         logger.error(f"Error resetting seed data: {e}")
         db.rollback()
         raise
+
     finally:
         db.close()

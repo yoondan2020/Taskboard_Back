@@ -5,13 +5,18 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
-from app.schemas.project_stage import ProjectStageCreateReq, ProjectStageRes, ProjectStageUpdateReq, ProjectStageDetailRes
-from app.models.project_stage import ProjectStage
+# schemas
+from app.schemas.stage import StageCreateReq, StageRes, StageUpdateReq, StageDetailRes
+
+# models
+from app.models.stage import Stage
 from app.models.project_history import ProjectHistory
 from app.models.state import State
 from app.models.project import Project
 from app.models.enums import ProjectHistoryEventType
 from app.models.user import User
+
+# utils
 from app.utils.history import to_history_value
 from app.core.exceptions import (
     project_not_found,
@@ -50,8 +55,8 @@ def _add_history(
     db.add(history)
 
 # 프로젝트 관리 권한 확인
-def _can_manage_project(current_user: User, ps: ProjectStage, db: Session) -> bool:
-    if getattr(current_user, "role", None) in ("ADMIN", "LAB_HEAD"):
+def _can_manage_project(current_user: User, ps: Stage, db: Session) -> bool:
+    if getattr(current_user, "role", None) in ("ADMIN"):
         return True
 
     # 프로젝트 owner면 가능
@@ -71,24 +76,27 @@ def _can_manage_project(current_user: User, ps: ProjectStage, db: Session) -> bo
 
 # ====================
 # Create
-def create_project_stage(project_id: int, payload: ProjectStageCreateReq, db: Session, current_user: User) -> ProjectStage:
+def create_project_stage(project_id: int, payload: StageCreateReq, db: Session, current_user: User) -> Stage:
     
     try:
         db.execute(text("SELECT pg_advisory_xact_lock(:pid)"), {"pid": project_id})
 
         max_seq = db.execute(
-            select(func.coalesce(func.max(ProjectStage.sequence), 0))
-            .where(ProjectStage.project_id == project_id)
+            select(func.coalesce(func.max(Stage.sequence), 0))
+            .where(Stage.project_id == project_id)
         ).scalar_one()
 
-        ps = ProjectStage(
+        ps = Stage(
             project_id=project_id,
+            name=payload.name,
+
             stage_owner_id=payload.stage_owner_id,
-            stage_id=payload.stage_id,
             state_id=payload.state_id,
             sequence=max_seq + 1,
+
             note=payload.note, 
             remark=payload.remark,
+
             planned_date=payload.planned_date,
             act_date=payload.act_date,
             eta=payload.eta,
@@ -120,27 +128,27 @@ def create_project_stage(project_id: int, payload: ProjectStageCreateReq, db: Se
 
 # ====================
 # Read
-def list_project_stages(project_id: int, db: Session) -> List[ProjectStageRes]:
+def list_project_stages(project_id: int, db: Session) -> List[StageRes]:
     exists = db.query(Project.id).filter(Project.id == project_id).first()
     if not exists:
         raise project_not_found(project_id)
 
     stages = (
-        db.query(ProjectStage)
-        .options(joinedload(ProjectStage.stage_owner))  
-        .filter(ProjectStage.project_id == project_id)
-        .order_by(ProjectStage.sequence.asc())
+        db.query(Stage)
+        .options(joinedload(Stage.stage_owner))  
+        .filter(Stage.project_id == project_id)
+        .order_by(Stage.sequence.asc())
         .all()
     )
 
     return [
-        ProjectStageRes(
+        StageRes(
             id=s.id,
             project_id=s.project_id,
+            name=s.name,
             # 담당자
             stage_owner_id=s.stage_owner_id,
             stage_owner_name=s.stage_owner.name if s.stage_owner else None,
-            stage_id=s.stage_id,
             sequence=s.sequence,
             state_id=s.state_id,
         )
@@ -148,13 +156,13 @@ def list_project_stages(project_id: int, db: Session) -> List[ProjectStageRes]:
     ]
 
 
-def detail_project_stage(project_id: int, project_stage_id: int, db: Session) -> ProjectStageDetailRes:
+def detail_project_stage(project_id: int, project_stage_id: int, db: Session) -> StageDetailRes:
     stage = (
-        db.query(ProjectStage)
-        .options(joinedload(ProjectStage.stage_owner))
+        db.query(Stage)
+        .options(joinedload(Stage.stage_owner))
         .filter(
-            ProjectStage.id == project_stage_id,
-            ProjectStage.project_id == project_id,
+            Stage.id == project_stage_id,
+            Stage.project_id == project_id,
         )
         .first()
     )
@@ -162,10 +170,11 @@ def detail_project_stage(project_id: int, project_stage_id: int, db: Session) ->
     if not stage:
         raise project_stage_not_found(project_stage_id)
 
-    return ProjectStageDetailRes(
+    return StageDetailRes(
         id=stage.id,
         project_id=stage.project_id,
-        stage_id=stage.stage_id,
+        name=stage.name,
+
         sequence=stage.sequence,
         state_id=stage.state_id,
 
@@ -175,6 +184,7 @@ def detail_project_stage(project_id: int, project_stage_id: int, db: Session) ->
         planned_date=stage.planned_date,
         act_date=stage.act_date,
         eta=stage.eta,
+
         note=stage.note,
         remark=stage.remark,
     )
@@ -182,14 +192,14 @@ def detail_project_stage(project_id: int, project_stage_id: int, db: Session) ->
 
 # ====================
 # Update
-def update_project_stage(project_id: int, project_stage_id: int, payload: ProjectStageUpdateReq, db: Session, current_user: User) -> ProjectStageRes:
+def update_project_stage(project_id: int, project_stage_id: int, payload: StageUpdateReq, db: Session, current_user: User) -> StageRes:
     
     # stage 존재 여부 확인
     stage = (
-        db.query(ProjectStage)
+        db.query(Stage)
         .filter(
-            ProjectStage.id == project_stage_id,
-            ProjectStage.project_id == project_id,
+            Stage.id == project_stage_id,
+            Stage.project_id == project_id,
         )
         .first()
     )
@@ -203,18 +213,18 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: Projec
 
     # 선택적으로 업데이트
     # stage 변경
-    if payload.stage_id is not None and payload.stage_id != stage.stage_id:
+    if payload.name is not None and payload.name != stage.name:
         _add_history(
             db,
             project_id=project_id,
             project_stage_id=project_stage_id,
             event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
-            field="stage_id",
-            old_value=stage.stage_id,
-            new_value=payload.stage_id,
+            field="stage_name",
+            old_value=stage.name,
+            new_value=payload.name,
             changed_by=current_user
         )
-        stage.stage_id = payload.stage_id
+        stage.name = payload.name
 
     # state 상태 변경
     if payload.state_id is not None and payload.state_id != stage.state_id:
@@ -343,13 +353,13 @@ def change_stage_owner(
     new_owner_id: int,
     db: Session,
     current_user: User,
-) -> ProjectStageRes:
+) -> StageRes:
 
     stage = (
-        db.query(ProjectStage)
+        db.query(Stage)
         .filter(
-            ProjectStage.id == project_stage_id,
-            ProjectStage.project_id == project_id,
+            Stage.id == project_stage_id,
+            Stage.project_id == project_id,
         )
         .first()
     )
@@ -399,10 +409,10 @@ def delete_project_stage(project_id: int, project_stage_id: int, db: Session, cu
 
     # stage 존재 여부 확인
     stage = (
-        db.query(ProjectStage)
+        db.query(Stage)
         .filter(
-            ProjectStage.id == project_stage_id,
-            ProjectStage.project_id == project_id,
+            Stage.id == project_stage_id,
+            Stage.project_id == project_id,
         )
         .first()
     )

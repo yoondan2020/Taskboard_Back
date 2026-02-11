@@ -56,7 +56,6 @@ def list_all_stages(db: Session = Depends(get_db)):
 def list_stages(db: Session = Depends(get_db)):
     return (
         db.query(Stage)
-        .filter(Stage.is_active == True)
         .order_by(Stage.id.asc())
         .all()
     )

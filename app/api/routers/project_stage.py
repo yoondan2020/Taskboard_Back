@@ -3,14 +3,14 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.project_stage import (
-    ProjectStageRes,
-    ProjectStageUpdateReq,
-    ProjectStageCreateReq,
-    ProjectStageDetailRes,
+from app.schemas.stage import (
+    StageRes,
+    StageUpdateReq,
+    StageCreateReq,
+    StageDetailRes,
     ChangeStageOwnerReq,
 )
-from app.services import project_stage_service
+from app.services import stage_service
 from app.models.user import User
 from app.core.security.deps import get_current_user
 
@@ -44,11 +44,11 @@ RESP_422 = {"description": "Validation Error"}
 )
 def create_project_stage(
     project_id: int,
-    payload: ProjectStageCreateReq,
+    payload: StageCreateReq,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project_stage_service.create_project_stage(project_id, payload, db, current_user)
+    stage_service.create_project_stage(project_id, payload, db, current_user)
     # body 없음 (Project 쪽이랑 정책 통일)
 
 
@@ -56,7 +56,7 @@ def create_project_stage(
 # Read
 @router.get(
     "",
-    response_model=List[ProjectStageRes],
+    response_model=List[StageRes],
     responses={
         200: {"description": "OK"},
         404: RESP_404,
@@ -66,12 +66,12 @@ def list_project_stages(
     project_id: int,
     db: Session = Depends(get_db),
 ):
-    return project_stage_service.list_project_stages(project_id, db)
+    return stage_service.list_project_stages(project_id, db)
 
 
 @router.get(
     "/{project_stage_id}",
-    response_model=ProjectStageDetailRes,
+    response_model=StageDetailRes,
     responses={
         200: {"description": "OK"},
         404: RESP_404,
@@ -82,7 +82,7 @@ def detail_project_stage(
     project_stage_id: int,
     db: Session = Depends(get_db),
 ):
-    return project_stage_service.detail_project_stage(
+    return stage_service.detail_project_stage(
         project_id, project_stage_id, db
     )
 
@@ -105,11 +105,11 @@ def detail_project_stage(
 def update_project_stage(
     project_id: int,
     project_stage_id: int,
-    payload: ProjectStageUpdateReq,
+    payload: StageUpdateReq,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project_stage_service.update_project_stage(
+    stage_service.update_project_stage(
         project_id, project_stage_id, payload, db, current_user
     )
 
@@ -122,7 +122,7 @@ def change_stage_owner(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return project_stage_service.change_stage_owner(
+    return stage_service.change_stage_owner(
         project_id=project_id,
         project_stage_id=project_stage_id,
         new_owner_id=payload.stage_owner_id,
@@ -149,6 +149,6 @@ def delete_project_stage(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project_stage_service.delete_project_stage(
+    stage_service.delete_project_stage(
         project_id, project_stage_id, db, current_user
     )

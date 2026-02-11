@@ -35,7 +35,7 @@ class ProjectHistory(Base):
     # 프로젝트 단위 이벤트면 NULL 가능
     project_stage_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("project_stage.id", ondelete="SET NULL"),
+        ForeignKey("stage.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -77,7 +77,7 @@ class ProjectHistory(Base):
 
     # --- Relationships ---
     project = relationship("Project", lazy="joined")
-    project_stage = relationship("ProjectStage", lazy="joined")
+    project_stage = relationship("Stage", lazy="joined")
     changer = relationship(
         "User",
         foreign_keys=[changed_by_id], 

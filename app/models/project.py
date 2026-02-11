@@ -1,3 +1,4 @@
+# app/models.project.py
 from datetime import date
 from typing import TYPE_CHECKING, Optional
 from sqlalchemy.orm import relationship
@@ -8,7 +9,7 @@ from app.db import Base
 from datetime import datetime
 
 if TYPE_CHECKING:
-    from app.models.project_stage import ProjectStage
+    from app.models.stage import Stage
     from app.models.product_group import ProductGroup
     from app.models.state import State
     from app.models.user import User
@@ -62,12 +63,13 @@ class Project(Base):
     is_deleted: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     # 관계 추가
-    stages: Mapped[list["ProjectStage"]] = relationship(
-        "ProjectStage", 
+    stages: Mapped[list["Stage"]] = relationship(
+        "Stage", 
         back_populates="project",
         cascade="all, delete-orphan",
-        order_by="ProjectStage.sequence"  # sequence 순서대로 정렬
+        order_by="Stage.sequence"  # sequence 순서대로 정렬
     )
+
     product_group : Mapped["ProductGroup"] = relationship("ProductGroup")
     state : Mapped["State"] = relationship("State")
     owner = relationship(

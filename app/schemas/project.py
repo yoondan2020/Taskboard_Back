@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from app.schemas.project_stage import ProjectStageDetailRes
+from app.schemas.stage import StageDetailRes
 
 
 # ======================================================
@@ -24,14 +24,7 @@ class ProjectBase(BaseModel):
 # ======================================================
 
 class ProjectCreateReq(ProjectBase):
-    is_create_stage: bool = Field(
-        ..., description="프로젝트 생성 시 기본 단계 생성 여부"
-    )
-    stage_order: Optional[List[int]] = Field(
-        default=None,
-        description="생성할 stage id 순서 목록 (is_create_stage=true일 때 필수)",
-        example=[1, 2, 3, 4, 5, 6, 7],
-    )
+    ...
 
 
 class ProjectUpdateReq(BaseModel):
@@ -135,7 +128,7 @@ class ProjectDetailRes(BaseModel):
     progress: ProjectProgress
 
     # 단계 목록
-    stages: List[ProjectStageDetailRes]
+    stages: List[StageDetailRes]
     
     # 유관자
     stage_owner_names:  Optional[list[str]] = None

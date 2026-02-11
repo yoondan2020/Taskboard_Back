@@ -3,17 +3,23 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 
+# models
 from app.models.project import Project
 from app.models.product_group import ProductGroup
 from app.models.stage import Stage
 from app.models.state import State
-from app.models.project_stage import ProjectStage
-from app.schemas.project import ProjectCreateReq, ProjectSummaryRes, ProjectDetailRes, ProjectStageSummary, ProjectProgress, ProjectUpdateReq
-from app.schemas.project_stage import ProjectStageDetailRes
-from app.services import project_history_service
-from app.schemas.project_history import CreateProjectHistory
 from app.models.enums import StateID, ProjectHistoryEventType
 from app.models.user import User
+
+# schemas
+from app.schemas.project import ProjectCreateReq, ProjectSummaryRes, ProjectDetailRes, ProjectStageSummary, ProjectProgress, ProjectUpdateReq
+from app.schemas.project_history import CreateProjectHistory
+from app.schemas.stage import StageDetailRes
+
+# service
+from app.services import project_history_service
+
+# exceptions
 from app.core.exceptions import (
     project_not_found,
     state_not_found,
@@ -54,7 +60,7 @@ def _add_project_history(
 
 # 프로젝트 관리 권한 확인
 def _can_manage_project(current_user: User, project: Project) -> bool:
-    if getattr(current_user, "role", None) in ("ADMIN", "LAB_HEAD"):
+    if getattr(current_user, "role", None) in ("ADMIN"):
         return True
     return project.owner_id is not None and project.owner_id == current_user.id
 
@@ -86,47 +92,6 @@ def create_project(db: Session, payload: ProjectCreateReq, current_user: User) -
     db.add(p)
     db.commit()
     db.refresh(p)
-
-    # 2) stage 생성
-    if payload.is_create_stage:
-        if not payload.stage_order:
-            raise InvalidInputException(
-                "stage_order",
-                "stage_order is required when is_create_stage is true"
-            )
-
-        stages = (
-            db.query(Stage)
-            .filter(Stage.id.in_(payload.stage_order))
-            .filter(Stage.is_active == True)
-            .all()
-        )
-
-        if len(stages) != len(payload.stage_order):
-            raise InvalidInputException("stage_order", "Some stage IDs are invalid")
-            
-        # 기본 state_id = "Planned" 
-        default_state = db.query(State).filter(State.id == StateID.PLANNED).first()
-        if not default_state:
-            # 또는 첫 번째 state 사용
-            default_state = db.query(State).order_by(State.id).first()
-        
-        if not default_state:
-            raise HTTPException(
-                status_code=500,
-                detail="No default state found in database"
-            )
-
-        for sequence, stage_id in enumerate(payload.stage_order, start=1):
-            project_stage = ProjectStage(
-                project_id=p.id,
-                stage_id=stage_id,
-                sequence=sequence,
-                state_id=default_state.id 
-            )
-            db.add(project_stage)
-
-    db.commit()
     
     # 프로젝트 생성 히스토리 기록
     _add_project_history(
@@ -151,9 +116,9 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
             joinedload(Project.product_group),
             joinedload(Project.owner),
             joinedload(Project.state),  # state도 미리 로드
-            joinedload(Project.stages).joinedload(ProjectStage.stage),
-            joinedload(Project.stages).joinedload(ProjectStage.state),
-            joinedload(Project.stages).joinedload(ProjectStage.stage_owner),
+            joinedload(Project.stages),
+            joinedload(Project.stages).joinedload(Stage.state),
+            joinedload(Project.stages).joinedload(Stage.stage_owner),
         )
         .order_by(Project.id.desc())
         .all()
@@ -162,7 +127,7 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
     result: List[ProjectSummaryRes] = []
 
     for project in projects:
-        # 이제 추가 쿼리 없이 바로 사용 가능!
+
         stages = project.stages
         
         # 프로젝트 구분 (이미 로드됨)
@@ -212,8 +177,6 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
                 stages[-1]
             )
 
-            stage_name = getattr(current_stage.stage, "name", None) if current_stage else None
-
             state_name = (
                 current_stage.state.name
                 if current_stage and current_stage.state
@@ -239,7 +202,8 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
                 # 현재 진행 중인 단계
                 current_stage=ProjectStageSummary(
                     id=current_stage.id,
-                    stage_name=current_stage.stage.name,
+                    name=current_stage.name,
+
                     state_name=state_name,
                     planned_date=current_stage.planned_date,
                     
@@ -279,13 +243,12 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
 
     # ProjectStage 가져오기
     project_stages = (
-        db.query(ProjectStage)
-        .filter(ProjectStage.project_id == project.id)
+        db.query(Stage)
+        .filter(Stage.project_id == project.id)
         .options(
-            joinedload(ProjectStage.stage),
-            joinedload(ProjectStage.state)  # State도 함께 로드
+            joinedload(Stage.state)  # State도 함께 로드
         )
-        .order_by(ProjectStage.sequence)
+        .order_by(Stage.sequence)
         .all()
     ) 
 
@@ -305,16 +268,14 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
         state_name = ps.state.name if ps.state else None
         
         stages_list.append(
-            ProjectStageDetailRes(
+            StageDetailRes(
                 id=ps.id,
                 project_id=ps.project_id,
+                name=ps.name,
                 
                 stage_owner_id=ps.stage_owner_id,  # Stage.owner_id
                 stage_owner_name=ps.stage_owner.name if ps.stage_owner else None,
-                
-                stage_id=ps.stage.id,
-                stage_name=ps.stage.name,           # Stage 이름
-                
+                                
                 state_id=ps.state_id,
                 state_name=state_name,         # State 이름
                 
@@ -325,7 +286,6 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
                 note=ps.note,
                 remark=ps.remark,
                 sequence=ps.sequence
-                
             )
         )
 
@@ -364,9 +324,8 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
             joinedload(Project.product_group),
             joinedload(Project.owner),
             joinedload(Project.state),
-            joinedload(Project.stages).joinedload(ProjectStage.stage),
-            joinedload(Project.stages).joinedload(ProjectStage.state),
-            joinedload(Project.stages).joinedload(ProjectStage.stage_owner),
+            joinedload(Project.stages).joinedload(Stage.state),
+            joinedload(Project.stages).joinedload(Stage.stage_owner),
         )
         .filter(Project.owner_id == current_user.id)
         .order_by(Project.id.desc())
@@ -376,7 +335,6 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
     result: List[ProjectSummaryRes] = []
 
     for project in projects:
-        # 이제 추가 쿼리 없이 바로 사용 가능!
         stages = project.stages
         
         # 프로젝트 구분 (이미 로드됨)
@@ -425,8 +383,6 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
                 stages[-1]
             )
 
-            stage_name = getattr(current_stage.stage, "name", None) if current_stage else None
-
             state_name = (
                 current_stage.state.name
                 if current_stage and current_stage.state
@@ -451,7 +407,7 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
                 # 현재 진행 중인 단계
                 current_stage=ProjectStageSummary(
                     id=current_stage.id,
-                    stage_name=current_stage.stage.name,
+                    stage_name=current_stage.name,
                     state_name=state_name,
                     planned_date=current_stage.planned_date,
                     
@@ -477,15 +433,14 @@ def get_my_related_projects(db: Session, current_user: User) -> list[ProjectSumm
     projects = (
         db.query(Project)
         .distinct()
-        .join(ProjectStage, Project.id == ProjectStage.project_id)
-        .filter(ProjectStage.stage_owner_id == current_user.id)
+        .join(Stage, Project.id == Stage.project_id)
+        .filter(Stage.stage_owner_id == current_user.id)
         .options(
             joinedload(Project.product_group),
             joinedload(Project.state),
             joinedload(Project.owner),
-            joinedload(Project.stages).joinedload(ProjectStage.stage),
-            joinedload(Project.stages).joinedload(ProjectStage.state),
-            joinedload(Project.stages).joinedload(ProjectStage.stage_owner),
+            joinedload(Project.stages),
+            joinedload(Project.stages).joinedload(Stage.state),
         )
         .order_by(Project.id.desc())
         .all()
@@ -555,9 +510,10 @@ def get_my_related_projects(db: Session, current_user: User) -> list[ProjectSumm
                 state_name=state.name,
                 product_group_id=project.product_group_id,
                 product_group_name=product_group.name,
+                # 현재 단계
                 current_stage=ProjectStageSummary(
                     id=current_stage.id,
-                    stage_name=current_stage.stage.name,
+                    stage_name=current_stage.name,
                     state_name=state_name,
                     planned_date=current_stage.planned_date,
                     stage_owner_id=current_stage.stage_owner_id,
