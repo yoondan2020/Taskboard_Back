@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 from datetime import datetime, timedelta
+from sqlalchemy import or_
 
 # models
 from app.models.project import Project
@@ -65,6 +66,93 @@ def _can_manage_project(current_user: User, project: Project) -> bool:
         return True
     return project.owner_id is not None and project.owner_id == current_user.id
 
+
+# Project 객체를 ProjectSummaryRes로 변환
+def _build_project_summary(project: Project) -> ProjectSummaryRes:
+    stages = project.stages
+    
+    # 프로젝트 구분 (이미 로드됨)
+    product_group = project.product_group
+    if not product_group:
+        raise product_group_not_found(project.product_group_id)
+    
+    # state (이미 로드됨)
+    state = project.state
+    if not state:
+        raise state_not_found(project.state_id)
+    
+    # 진행률(총 단계)
+    progress_total = len(stages)
+    
+    # 프로젝트 단계가 없으면
+    if progress_total == 0:
+        return ProjectSummaryRes(
+            id=project.id,
+            title=project.title,
+            thumbnail_url=project.thumbnail_url,
+            
+            owner_id=project.owner_id,
+            owner_name=project.owner.name,
+            
+            state_id=state.id,
+            state_name=state.name,
+
+            product_group_id=project.product_group_id,
+            product_group_name=product_group.name,
+
+            current_stage=None,
+
+            progress=ProjectProgress(
+                completed=0,
+                total=0
+            )
+        )
+    
+    # 프로젝트 단계가 있으면
+    progress_completed = sum(1 for s in stages if s.state_id == StateID.COMPLETED)
+    
+    # 현재 진행 중인 stage 찾기
+    current_stage = next(
+        (s for s in stages if s.state_id != StateID.COMPLETED),
+        stages[-1]
+    )
+
+    state_name = (
+        current_stage.state.name
+        if current_stage and current_stage.state
+        else None
+    )
+
+    return ProjectSummaryRes(
+        id=project.id,
+        project_id=project.id,
+        title=project.title,
+        thumbnail_url=project.thumbnail_url,
+        
+        owner_id=project.owner_id,
+        owner_name=project.owner.name,
+        
+        state_id=project.state_id,
+        state_name=state.name,
+        
+        product_group_id=project.product_group_id,
+        product_group_name=product_group.name,
+
+        current_stage=ProjectStageSummary(
+            id=current_stage.id,
+            stage_name=current_stage.name,
+            state_name=state_name,
+            planned_date=current_stage.planned_date,
+            stage_owner_id=current_stage.stage_owner_id,
+            stage_owner_name=current_stage.stage_owner.name if current_stage.stage_owner else None,
+        ) if current_stage else None,
+
+        progress=ProjectProgress(
+            completed=progress_completed,
+            total=progress_total
+        )
+    )
+
 # =========================
 # 프로젝트 Create
 def create_project(db: Session, payload: ProjectCreateReq, current_user: User) -> Project:
@@ -110,13 +198,12 @@ def create_project(db: Session, payload: ProjectCreateReq, current_user: User) -
 
 # Dashboard Project_list
 def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
-    # N+1 문제 해결: 모든 관계를 한 번에 로드
     projects = (
         db.query(Project)
         .options(
             joinedload(Project.product_group),
             joinedload(Project.owner),
-            joinedload(Project.state),  # state도 미리 로드
+            joinedload(Project.state),
             joinedload(Project.stages),
             joinedload(Project.stages).joinedload(Stage.state),
             joinedload(Project.stages).joinedload(Stage.stage_owner),
@@ -125,104 +212,7 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
         .all()
     )
     
-    result: List[ProjectSummaryRes] = []
-
-    for project in projects:
-
-        stages = project.stages
-        
-        # 프로젝트 구분 (이미 로드됨)
-        product_group = project.product_group
-        if not product_group:
-            raise product_group_not_found(project.product_group_id)
-        
-        # state (이미 로드됨)
-        state = project.state
-        if not state:
-            raise state_not_found(project.state_id)
-        
-        # 진행률(총 단계)
-        progress_total = len(stages)
-        
-        # 프로젝트 단계가 없으면
-        if progress_total == 0:
-            summary = ProjectSummaryRes(
-                id=project.id,
-                title=project.title,
-                thumbnail_url=project.thumbnail_url,
-                
-                owner_id=project.owner_id,
-                owner_name=project.owner.name,
-                
-                state_id=state.id,
-                state_name=state.name,
-
-                product_group_id=project.product_group_id,
-                product_group_name=product_group.name,
-
-                current_stage=None,
-
-                progress=ProjectProgress(
-                    completed=0,
-                    total=0
-                )
-            )
-            
-        # 프로젝트 단계가 있으면
-        else:
-            progress_completed = sum(1 for s in stages if s.state_id == StateID.COMPLETED)
-            
-            # 현재 진행 중인 stage 찾기 ( 완료가 아닌 것 중, 순서가 빠른 것)                       
-            current_stage = next(
-                (s for s in stages if s.state_id != StateID.COMPLETED),
-                stages[-1]
-            )
-
-            state_name = (
-                current_stage.state.name
-                if current_stage and current_stage.state
-                else None
-            )
-
-            summary = ProjectSummaryRes(
-                id=project.id,
-                project_id=project.id,
-                title=project.title,
-                thumbnail_url=project.thumbnail_url,
-                
-                owner_id=project.owner_id,
-                owner_name=project.owner.name,
-                
-                state_id=project.state_id,
-                state_name=state.name,
-                
-                # 프로젝트 구분
-                product_group_id=project.product_group_id,
-                product_group_name=product_group.name,
-
-                # 현재 진행 중인 단계
-                current_stage=ProjectStageSummary(
-                    id=current_stage.id,
-                    name=current_stage.name,
-
-                    state_name=state_name,
-                    planned_date=current_stage.planned_date,
-                    
-                    stage_owner_id=current_stage.stage_owner_id,
-                    stage_owner_name=current_stage.stage_owner.name if current_stage.stage_owner else None,
-                    
-                ) if current_stage else None,
-
-                # 진행률
-                progress=ProjectProgress(
-                    completed=progress_completed,
-                    total=progress_total
-                )
-            )
-
-        result.append(summary)
-
-    return result
+    return [_build_project_summary(p) for p in projects]
 
 # Detail Project + Stages
 def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
@@ -318,7 +308,7 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
 
 # 마감 임박 프로젝트 수
 def get_urgent_project_count(db: Session) -> int:
-
+    now = datetime.now()
     urgent_deadline = datetime.now() + timedelta(days=3)
 
     # StateID가 IN_PROGRESS인 프로젝트 가져오기
@@ -326,7 +316,13 @@ def get_urgent_project_count(db: Session) -> int:
         db.query(Project.id)
         .filter(Project.state_id == StateID.IN_PROGRESS)
         .join(Project.stages)
-        .filter(Stage.planned_date <= urgent_deadline)
+        .filter(Stage.state_id != StateID.COMPLETED)
+        .filter(
+            or_(
+                Stage.planned_date < now,              # 과거 모두
+                Stage.planned_date <= urgent_deadline  # 미래 3일 이내
+            )
+        )
         .distinct()
         .count()
     )
@@ -335,10 +331,35 @@ def get_urgent_project_count(db: Session) -> int:
     
 
 # 마감임박 프로젝트 리스트
-def get_urgent_proejct(db: Session) -> list[ProjectSummaryRes]:
-    projects = db.query(Project).filter(Project.state == StateID.COMPLETED).first()
-    if not projects:
-        raise project_not_found(projects)
+def get_urgent_projects(db: Session) -> list[ProjectSummaryRes]:
+    now = datetime.now()    
+    urgent_deadline = datetime.now() + timedelta(days=3)
+    
+    projects = (
+        db.query(Project)
+        .filter(Project.state_id == StateID.IN_PROGRESS)
+        .join(Project.stages)
+        .filter(Stage.state_id != StateID.COMPLETED)
+        .filter(
+            or_(
+                Stage.planned_date < now,              # 과거 모두
+                Stage.planned_date <= urgent_deadline  # 미래 3일 이내
+            )
+        )
+        .options(
+            joinedload(Project.product_group),
+            joinedload(Project.owner),
+            joinedload(Project.state),
+            joinedload(Project.stages),
+            joinedload(Project.stages).joinedload(Stage.state),
+            joinedload(Project.stages).joinedload(Stage.stage_owner),
+        )
+        .distinct()
+        .order_by(Project.id.desc())
+        .all()
+    )
+    
+    return [_build_project_summary(p) for p in projects]
 
 # 내가 owner인 프로젝트 리스트
 def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:    

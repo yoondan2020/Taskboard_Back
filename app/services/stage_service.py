@@ -212,7 +212,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         raise PermissionDeniedException("You don't have permission to modify this project stage")
 
     # 선택적으로 업데이트
-    # stage 변경
+    # stage 이름 변경
     if payload.name is not None and payload.name != stage.name:
         _add_history(
             db,
@@ -229,32 +229,32 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
     # state 상태 변경
     if payload.state_id is not None and payload.state_id != stage.state_id:
         
-        oldState = ( 
-                db.query(State)
-                .filter(State.id == stage.state_id)
-                .first()
-        )
-        if not oldState:
-            raise state_not_found(stage.state_id)
+        # 기존 상태가 있으면 (변경)
+        if stage.state_id is not None:
+            oldState = db.query(State).filter(State.id == stage.state_id).first()
+            if not oldState:
+                raise state_not_found(stage.state_id)
+            
+            newState = db.query(State).filter(State.id == payload.state_id).first()
+            if not newState:
+                raise state_not_found(payload.state_id)
+            
+            _add_history(
+                db,
+                project_id=project_id,
+                project_stage_id=project_stage_id,
+                event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
+                field="state_id",
+                old_value=oldState.name,
+                new_value=newState.name,
+                changed_by=current_user
+            )
         
-        newState = (
-                db.query(State)
-                .filter(State.id == payload.state_id)
-                .first()
-        )
-        if not newState:
-            raise state_not_found(payload.state_id)
-        
-        _add_history(
-            db,
-            project_id=project_id,
-            project_stage_id=project_stage_id,
-            event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
-            field="state_id",
-            old_value=oldState.name,
-            new_value=newState.name,
-            changed_by=current_user
-        )
+        # 기존 상태 없으면 (최초 설정) - 히스토리 없이 그냥 설정
+        else:
+            newState = db.query(State).filter(State.id == payload.state_id).first()
+            if not newState:
+                raise state_not_found(payload.state_id)
         
         stage.state_id = payload.state_id
 
