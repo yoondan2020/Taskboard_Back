@@ -2,8 +2,8 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
-from datetime import datetime, timedelta
-from sqlalchemy import or_
+from datetime import datetime, timedelta, date
+from sqlalchemy import or_, func
 
 # models
 from app.models.project import Project
@@ -346,6 +346,29 @@ def get_urgent_projects(db: Session) -> list[ProjectSummaryRes]:
                 Stage.planned_date <= urgent_deadline  # 미래 3일 이내
             )
         )
+        .options(
+            joinedload(Project.product_group),
+            joinedload(Project.owner),
+            joinedload(Project.state),
+            joinedload(Project.stages),
+            joinedload(Project.stages).joinedload(Stage.state),
+            joinedload(Project.stages).joinedload(Stage.stage_owner),
+        )
+        .distinct()
+        .order_by(Project.id.desc())
+        .all()
+    )
+    
+    return [_build_project_summary(p) for p in projects]
+
+# 특정 날짜 마감 프로젝트 목록
+def get_projects_by_deadline(db: Session, target_date: date) -> list[ProjectSummaryRes]:
+    projects = (
+        db.query(Project)
+        .filter(Project.state_id == StateID.IN_PROGRESS)
+        .join(Project.stages)
+        .filter(Stage.state_id != StateID.COMPLETED)
+        .filter(func.date(Stage.planned_date) == target_date)  # 특정 날짜만
         .options(
             joinedload(Project.product_group),
             joinedload(Project.owner),

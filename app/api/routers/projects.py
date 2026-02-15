@@ -35,6 +35,7 @@ def create_project(
 def get_list_summary_projects(db: Session = Depends(get_db)):
     return project_service.get_list_summary_projects(db)
 
+
 # 마감 임박 프로젝트 수
 @router.get("/urgent/count", response_model=int)
 def get_urgent_project_count(db: Session = Depends(get_db)):
@@ -46,6 +47,17 @@ def get_urgent_projects(
     db: Session = Depends(get_db),
 ):
     return project_service.get_urgent_projects(db)
+
+# 특정 날짜 마감 프로젝트 목록
+@router.get("/deadline", response_model=list[ProjectSummaryRes])
+def get_projects_by_deadline_endpoint(
+    date: str, 
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+    target_date = datetime.strptime(date, "%Y-%m-%d").date()
+    return project_service.get_projects_by_deadline(db, target_date)
+
 
 # 내가 owner인 프로젝트 목록 조회
 @router.get("/owned", response_model=list[ProjectSummaryRes])
@@ -62,6 +74,7 @@ def get_my_related_proejct(
     current_user: User = Depends(get_current_user),
 ):
     return project_service.get_my_related_projects(db, current_user)
+
 
 # 프로젝트 디테일
 @router.get("/{project_id}", response_model=ProjectDetailRes)
