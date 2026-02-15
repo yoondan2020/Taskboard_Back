@@ -2,6 +2,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
+from datetime import datetime, timedelta
 
 # models
 from app.models.project import Project
@@ -314,6 +315,30 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
         stages=stages_list,
         stage_owner_names=stage_owner_names
     )
+
+# 마감 임박 프로젝트 수
+def get_urgent_project_count(db: Session) -> int:
+
+    urgent_deadline = datetime.now() + timedelta(days=3)
+
+    # StateID가 IN_PROGRESS인 프로젝트 가져오기
+    count = (
+        db.query(Project.id)
+        .filter(Project.state_id == StateID.IN_PROGRESS)
+        .join(Project.stages)
+        .filter(Stage.planned_date <= urgent_deadline)
+        .distinct()
+        .count()
+    )
+
+    return count
+    
+
+# 마감임박 프로젝트 리스트
+def get_urgent_proejct(db: Session) -> list[ProjectSummaryRes]:
+    projects = db.query(Project).filter(Project.state == StateID.COMPLETED).first()
+    if not projects:
+        raise project_not_found(projects)
 
 # 내가 owner인 프로젝트 리스트
 def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:    

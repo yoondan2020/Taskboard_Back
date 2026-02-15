@@ -35,6 +35,18 @@ def create_project(
 def get_list_summary_projects(db: Session = Depends(get_db)):
     return project_service.get_list_summary_projects(db)
 
+# 마감 임박 프로젝트 수
+@router.get("/urgent/count", response_model=int)
+def get_urgent_project_count(db: Session = Depends(get_db)):
+    return project_service.get_urgent_project_count(db)
+
+# 마감 임박 단계가 있는 프로젝트들
+@router.get("/urgent", response_model=list[ProjectSummaryRes])
+def get_urgent_project(
+    db: Session = Depends(get_db),
+):
+    return project_service.get_urgent_project
+
 # 내가 owner인 프로젝트 목록 조회
 @router.get("/owned", response_model=list[ProjectSummaryRes])
 def get_owned_projects(
@@ -51,6 +63,7 @@ def get_my_related_proejct(
 ):
     return project_service.get_my_related_projects(db, current_user)
 
+# 프로젝트 디테일
 @router.get("/{project_id}", response_model=ProjectDetailRes)
 def get_project_detail(project_id: int, db: Session = Depends(get_db)):
     return project_service.get_project_detail(project_id, db)
