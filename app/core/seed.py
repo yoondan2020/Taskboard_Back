@@ -6,16 +6,19 @@ from app.models.state import State
 from app.models.product_group import ProductGroup
 from app.models.user import User
 from app.models.project import Project
+from app.models.notification_code import NotificationCode
+from app.models.notification import Notification
+from app.models.notification_recipient import NotificationRecipient
 from app.models.enums import UserRole
 from app.core.security.password import hash_password
 from datetime import datetime, timedelta
-import random
+import random 
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-# ===== 참조 데이터 =====
+# ===== 참조 데이터 =====thgus
 STATE_NAMES = [
     "PLANNED",      # ID: 1 (PLANNED)
     "IN_PROGRESS",   # ID: 2 (IN_PROGRESS)
@@ -75,6 +78,15 @@ TEST_USERS = [
         "department": "기획팀",
         "position": "매니저",
     },
+]
+
+NOTIFICATION_CODE_NAMES = [
+    "NOTICE_DEADLINE",
+    "NOTICE_REASON_MISSING",
+    "NOTICE_OVERDUE",
+    "NOTICE_DELAY",
+    "NOTICE_NORMALIZED",
+    "NOTICE_SCHEDULE_UPDATED",
 ]
 
 
@@ -277,6 +289,22 @@ def seed_stages(db: Session) -> None:
     stage_count = db.query(Stage).count()
     logger.info(f"Stages seeded: {stage_count} stages")
 
+def seed_notification_codes(db: Session) -> None:
+    # 알림 코드 생성
+    logger.info("Seeding notification codes...")
+
+    for name in NOTIFICATION_CODE_NAMES:
+        exists = db.query(NotificationCode).filter(NotificationCode.name == name).first()
+        if not exists:
+            db.add(NotificationCode(name=name))
+            logger.debug(f"Created notification code: {name}")
+
+    db.commit()
+    logger.info(f"Notification codes seeded: {len(NOTIFICATION_CODE_NAMES)} codes")
+
+
+
+#####################################################
 def seed_database() -> None:
     # 데이터베이스 초기 데이터 seeding 메인 함수
     # 앱 시작 시 자동 실행됨
@@ -288,6 +316,7 @@ def seed_database() -> None:
         # 순서 중요: 의존성이 없는 것부터
         seed_states(db)
         seed_product_groups(db)
+        seed_notification_codes(db)
         seed_test_users(db)
         seed_projects(db)
         seed_stages(db)
@@ -302,6 +331,7 @@ def seed_database() -> None:
         db.close()
 
 
+
 # ===== 유틸리티 함수 =====
 def reset_seed_data() -> None:
     # 테스트용: Seed 데이터 초기화
@@ -311,12 +341,17 @@ def reset_seed_data() -> None:
     db = SessionLocal()
     try:
         # 역순으로 삭제
+        db.query(NotificationRecipient).delete()
+        db.query(Notification).delete()
+        db.query(NotificationCode).delete()
+
         db.query(Stage).delete()
         db.query(Project).delete()
+
         db.query(User).delete()
         db.query(ProductGroup).delete()
-        db.query(Stage).delete()
         db.query(State).delete()
+
         db.commit()
         
         # 다시 seed

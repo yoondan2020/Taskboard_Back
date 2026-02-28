@@ -1,6 +1,7 @@
 from sqlalchemy import BigInteger, Boolean, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
+from typing import TYPE_CHECKING
 
 
 class NotificationRecipient(Base):
@@ -9,6 +10,10 @@ class NotificationRecipient(Base):
         UniqueConstraint("notification_id", "user_id", name="uq_notification_user"),
         Index("ix_recipient_user_unread", "user_id", "is_read"),
     )
+
+    if TYPE_CHECKING:
+        from app.models.user import User
+        from app.models.notification import Notification
 
     id: Mapped[int] = mapped_column(
         BigInteger,
@@ -37,5 +42,5 @@ class NotificationRecipient(Base):
     )
 
     # --- Relationships ---
-    user = relationship("User", lazy="joined")
-    notification = relationship("Notification", lazy="joined")
+    user: Mapped["User"] = relationship("User", lazy="joined")
+    notification: Mapped["Notification"] = relationship("Notification", lazy="joined")

@@ -7,6 +7,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
 from datetime import datetime
 
 from app.db import Base
@@ -14,6 +15,11 @@ from app.db import Base
 
 class Notification(Base):
     __tablename__ = "notification"
+    if TYPE_CHECKING:
+        from app.models.project import Project
+        from app.models.stage import Stage
+        from app.models.notification_code import NotificationCode
+        from app.models.project_history import ProjectHistory
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
 
@@ -77,13 +83,7 @@ class Notification(Base):
     )
 
     # --- Relationships ---
-    project = relationship("Project", lazy="joined")
-    project_stage = relationship("Stage", lazy="joined") 
-    notification_code = relationship("NotificationCode", lazy="joined")
-    project_history = relationship("ProjectHistory", lazy="joined")
-    recipients = relationship(
-        "NotificationRecipient",
-        back_populates="notification",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
+    project: Mapped["Project"] = relationship("Project", lazy="joined")
+    project_stage: Mapped["Stage"] = relationship("Stage", lazy="joined")
+    notification_code: Mapped["NotificationCode"] = relationship("NotificationCode", lazy="joined")
+    project_history: Mapped["ProjectHistory"] = relationship("ProjectHistory", lazy="joined")
