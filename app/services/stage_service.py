@@ -13,7 +13,7 @@ from app.models.stage import Stage
 from app.models.project_history import ProjectHistory
 from app.models.state import State
 from app.models.project import Project
-from app.models.enums import ProjectHistoryEventType, StateType
+from app.models.enums import ProjectHistoryEventType, StateType, NotificationScheduleType
 from app.models.user import User
 
 # utils
@@ -27,7 +27,7 @@ from app.core.exceptions import (
     ConflictException,
     InvalidInputException,
 )
-from app.services.notification_service import notice_normalized
+from app.services.notification_service import notice_normalized, notice_schedule_update
 
 # ====================
 # 헬퍼 함수
@@ -221,7 +221,6 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
 
     if not project:
         raise project_not_found(project_id)
-
     
     # 권한 확인
     if not _can_manage_project(current_user, stage, db):
@@ -280,9 +279,9 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
 
     
 
-    # planned_date 계획일 변경
+    # planned_date 계획일 변경 + 알림 트리거
     if payload.planned_date is not None and payload.planned_date != stage.planned_date:
-        _add_history(
+        history = _add_history(
             db,
             project_id=project_id,
             project_stage_id=project_stage_id,
@@ -294,9 +293,14 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         )
         stage.planned_date = payload.planned_date
         
+        # 알림 발송
+        notice_schedule_update(
+            stage, project, history.id, NotificationScheduleType.PLANNED_DATE, payload.planned_date, db
+        )
+
     # act_date 실행일 변경
     if payload.act_date is not None and payload.act_date != stage.act_date:
-        _add_history(
+        history = _add_history(
             db,
             project_id=project_id,
             project_stage_id=project_stage_id,
@@ -307,6 +311,11 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
             changed_by=current_user
         )
         stage.act_date = payload.act_date
+
+        # 알림 발송
+        notice_schedule_update(
+            stage, project, history.id, NotificationScheduleType.ACT_DATE, payload.act_date, db
+        )
         
     # eta 예상 완료일 변경/입력
     if payload.eta is not None and payload.eta != stage.eta:
@@ -320,7 +329,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
                 "예상 완료일 변경 사유가 필요합니다."
             )
 
-        _add_history(
+        history = _add_history(
             db,
             project_id=project_id,
             project_stage_id=project_stage_id,
@@ -333,6 +342,11 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         )
 
         stage.eta = payload.eta
+
+        # 알림 발송
+        notice_schedule_update(
+            stage, project, history.id, NotificationScheduleType.ETA, payload.eta, db
+        )
     
     #  note 업무 내용 변경
     if payload.note is not None and payload.note != stage.note:
@@ -387,6 +401,17 @@ def change_stage_owner(
     )
     if not stage:
         raise project_stage_not_found(project_stage_id)
+    
+    # project 가져오기
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id
+        )
+        .first()
+    )
+    if not project:
+        raise project_not_found(project_id)
 
     if not _can_manage_project(current_user, stage, db):
         raise PermissionDeniedException("You don't have permission to change the stage owner")
@@ -404,7 +429,7 @@ def change_stage_owner(
     if not new_owner:
         raise user_not_found(new_owner_id)
 
-    _add_history(
+    history = _add_history(
         db,
         project_id=project_id,
         project_stage_id=project_stage_id,
@@ -416,6 +441,12 @@ def change_stage_owner(
     )
 
     stage.stage_owner_id = new_owner_id
+
+    # 알림 발송
+    notice_schedule_update(
+        stage, project, history.id, NotificationScheduleType.CHANGE_OWNER, new_owner.name, db
+    )
+    
     db.commit()
     db.refresh(stage)
     return stage

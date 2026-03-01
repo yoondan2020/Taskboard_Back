@@ -50,3 +50,9 @@ class NotificationCodeType(str, Enum):
    NOTICE_DELAY= "NOTICE_DELAY"
    NOTICE_NORMALIZED= "NOTICE_NORMALIZED"
    NOTICE_SCHEDULE_UPDATED= "NOTICE_SCHEDULE_UPDATED"
+
+class NotificationScheduleType(str, Enum):
+    PLANNED_DATE = "planned_date"
+    ETA = "eta"
+    ACT_DATE = "act_date"
+    CHANGE_OWNER = "change_owner"

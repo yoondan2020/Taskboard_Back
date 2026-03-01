@@ -20,7 +20,7 @@ from app.models.user import User
 from app.models.notification_recipient import NotificationRecipient
 from app.models.notification import Notification
 from app.models.notification_code import NotificationCode
-from app.models.enums import NotificationCodeType
+from app.models.enums import NotificationCodeType, NotificationScheduleType
 
 # Notification Code
 def notification_code(notificationCodeType: NotificationCodeType, db:Session):
@@ -31,6 +31,7 @@ def notification_code(notificationCodeType: NotificationCodeType, db:Session):
     )
 
 
+# ===========================================
 # NOTICE_NORMALIZED
 def notice_normalized(
         ps: Stage, 
@@ -61,3 +62,44 @@ def notice_normalized(
 
     for uid in recipient_ids:
         db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+
+    return noti
+
+# ===========================================
+# NOTICE_SCHEDULE_UPDATED
+def notice_schedule_update(
+        ps: Stage, 
+        p: Project,
+        project_hitory_id: int,
+        field: NotificationScheduleType,
+        value: str,
+        db: Session
+    ) -> Notification:
+    # 알림 자체 저장
+    noti_code = notification_code(NotificationCodeType.NOTICE_SCHEDULE_UPDATED, db)
+
+    value_str = value.isoformat() if hasattr(value, "isoformat") else str(value)
+    trigger_context = {"field": field.value, "value": value_str}
+
+    noti = Notification(
+        project_id = ps.project_id,
+        project_stage_id = ps.id, 
+        notification_code_id = noti_code.id,
+        project_history_id = project_hitory_id,
+        trigger_context = trigger_context
+    )
+
+    db.add(noti)
+    db.flush()
+
+    # 알림 수신자 저장
+    recipient_ids = set()
+    if ps.stage_owner_id:
+        recipient_ids.add(ps.stage_owner_id)
+    if p.owner_id:
+        recipient_ids.add(p.owner_id)
+
+    for uid in recipient_ids:
+        db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+
+    return noti
