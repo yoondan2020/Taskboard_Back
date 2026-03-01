@@ -20,6 +20,11 @@ class StateID(IntEnum):
     DELAYED = 3
     COMPLETED = 4
 
+class StateType(str, Enum):
+    PLANNED = "PLANNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    DELAYED = "DELAYED"
+    COMPLETED = "COMPLETED"
 
 # =========================
 # Project History
@@ -34,3 +39,14 @@ class ProjectHistoryEventType(str, Enum):
     PROJECT_CREATED = "PROJECT_CREATED"
     PROJECT_DELETED = "PROJECT_DELETED"
     PROJECT_FIELD_CHANGED = "PROJECT_FIELD_CHANGED"
+
+# ============================
+# Notification
+# ============================
+class NotificationCodeType(str, Enum):
+   NOTICE_DEADLINE= "NOTICE_DEADLINE"
+   NOTICE_REASON_MISSING= "NOTICE_REASON_MISSING"
+   NOTICE_OVERDUE= "NOTICE_OVERDUE"
+   NOTICE_DELAY= "NOTICE_DELAY"
+   NOTICE_NORMALIZED= "NOTICE_NORMALIZED"
+   NOTICE_SCHEDULE_UPDATED= "NOTICE_SCHEDULE_UPDATED"

@@ -13,7 +13,7 @@ from app.models.stage import Stage
 from app.models.project_history import ProjectHistory
 from app.models.state import State
 from app.models.project import Project
-from app.models.enums import ProjectHistoryEventType
+from app.models.enums import ProjectHistoryEventType, StateType
 from app.models.user import User
 
 # utils
@@ -27,6 +27,7 @@ from app.core.exceptions import (
     ConflictException,
     InvalidInputException,
 )
+from app.services.notification_service import notice_normalized
 
 # ====================
 # 헬퍼 함수
@@ -53,6 +54,8 @@ def _add_history(
         changed_by_id=changed_by.id,
     )
     db.add(history)
+    db.flush()
+    return history
 
 # 프로젝트 관리 권한 확인
 def _can_manage_project(current_user: User, ps: Stage, db: Session) -> bool:
@@ -207,6 +210,19 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
     if not stage:
         raise project_stage_not_found(project_stage_id)
     
+    # project 가져오기
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id
+        )
+        .first()
+    )
+
+    if not project:
+        raise project_not_found(project_id)
+
+    
     # 권한 확인
     if not _can_manage_project(current_user, stage, db):
         raise PermissionDeniedException("You don't have permission to modify this project stage")
@@ -226,7 +242,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         )
         stage.name = payload.name
 
-    # state 상태 변경
+    # state 상태 변경 + 알림 트리거 추가
     if payload.state_id is not None and payload.state_id != stage.state_id:
         
         # 기존 상태가 있으면 (변경)
@@ -239,7 +255,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
             if not newState:
                 raise state_not_found(payload.state_id)
             
-            _add_history(
+            history = _add_history(
                 db,
                 project_id=project_id,
                 project_stage_id=project_stage_id,
@@ -249,7 +265,11 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
                 new_value=newState.name,
                 changed_by=current_user
             )
-        
+
+            # 알림 발송
+            if oldState.name == StateType.DELAYED.value and newState.name != StateType.DELAYED.value:
+                notice_normalized(stage, project, history.id, db)
+
         # 기존 상태 없으면 (최초 설정) - 히스토리 없이 그냥 설정
         else:
             newState = db.query(State).filter(State.id == payload.state_id).first()
@@ -257,6 +277,8 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
                 raise state_not_found(payload.state_id)
         
         stage.state_id = payload.state_id
+
+    
 
     # planned_date 계획일 변경
     if payload.planned_date is not None and payload.planned_date != stage.planned_date:

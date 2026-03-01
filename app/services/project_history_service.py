@@ -30,7 +30,7 @@ def create_project_history(
         new_value=payload.new_value,
         content=payload.content,
         context=payload.context,
-        changed_by_id=payload.changed_by_id,  # ⭐ 필수
+        changed_by_id=payload.changed_by_id,
     )
 
     db.add(history)
