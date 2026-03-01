@@ -26,7 +26,7 @@ from app.models.enums import NotificationCodeType
 def notification_code(notificationCodeType: NotificationCodeType, db:Session):
     return (
         db.query(NotificationCode)
-        .filter(NotificationCode.name == notificationCodeType.values)
+        .filter(NotificationCode.name == notificationCodeType.value)
         .one()
     )
 
@@ -39,28 +39,25 @@ def notice_normalized(
         db: Session
     ) -> Notification:
 
-    # now <= ETA면
-    TODAY = date.today()
-    if(ps.eta >= TODAY):
-        # 알림 자체 저장
-        noti_code = notification_code(NotificationCodeType.NOTICE_NORMALIZED, db)
-        
-        noti = Notification(
-            project_id = ps.project_id,
-            project_stage_id = ps.id, 
-            notification_code_id = noti_code.id,
-            project_history_id = project_hitory_id
-        )
+    # 알림 자체 저장
+    noti_code = notification_code(NotificationCodeType.NOTICE_NORMALIZED, db)
+    
+    noti = Notification(
+        project_id = ps.project_id,
+        project_stage_id = ps.id, 
+        notification_code_id = noti_code.id,
+        project_history_id = project_hitory_id
+    )
 
-        db.add(noti)
-        db.flush()
+    db.add(noti)
+    db.flush()
 
-        # 알림 수신자 저장
-        recipient_ids = set()
-        if ps.stage_owner_id:
-            recipient_ids.add(ps.stage_owner_id)
-        if p.owner_id:
-            recipient_ids.add(p.owner_id)
+    # 알림 수신자 저장
+    recipient_ids = set()
+    if ps.stage_owner_id:
+        recipient_ids.add(ps.stage_owner_id)
+    if p.owner_id:
+        recipient_ids.add(p.owner_id)
 
-        for uid in recipient_ids:
-            db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+    for uid in recipient_ids:
+        db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
