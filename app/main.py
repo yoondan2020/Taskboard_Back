@@ -5,6 +5,7 @@ from app.core.config import settings
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.core.security.password import hash_password
+from scheduler.scheduler import start_scheduler
 
 # 모델
 from app.models.stage import Stage  
@@ -58,4 +59,6 @@ def health():
 def on_startup():
     from app.core.seed import seed_database
     seed_database()
+    start_scheduler()
+
 
