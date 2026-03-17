@@ -8,11 +8,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 from datetime import datetime
 
-if TYPE_CHECKING:
-    from app.models.stage import Stage
-    from app.models.product_group import ProductGroup
-    from app.models.state import State
-    from app.models.user import User
+from app.models.stage import Stage
+from app.models.product_group import ProductGroup
+from app.models.state import State
+from app.models.user import User
 
 class Project(Base):
     __tablename__ = "project"

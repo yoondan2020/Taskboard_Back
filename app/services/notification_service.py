@@ -103,3 +103,54 @@ def notice_schedule_update(
         db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
 
     return noti
+
+# ===========================================
+# 마감 하루 전 알림 보내기
+def notice_deadline(
+    ps: Stage,
+    p: Project,
+    db: Session
+) -> Notification:
+
+    # 알림 코드
+    noti_code = notification_code(NotificationCodeType.NOTICE_DEADLINE, db)
+
+    # trigger_context
+    trigger_context = {
+        "eta": ps.eta.isoformat() if ps.eta else None
+    }
+
+    # notification 생성
+    noti = Notification(
+        project_id = ps.project_id,
+        project_stage_id = ps.id,
+        notification_code_id = noti_code.id,
+        trigger_context = trigger_context
+    )
+
+    db.add(noti)
+    db.flush()
+
+    # 수신자
+    recipient_ids = set()
+    if ps.stage_owner_id:
+        recipient_ids.add(ps.stage_owner_id)
+    if p.owner_id:
+        recipient_ids.add(p.owner_id)
+
+    for uid in recipient_ids:
+        db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+
+    return noti
+
+
+def get_stages_due_tomorrow(db: Session, tomorrow: date):
+    return (
+        db.query(Stage, Project)
+        .join(Project, Stage.project_id == Project.id)
+        .join(State, Stage.state_id == State.id)
+        .filter(State.name != 'Done')  # Stage 상태
+        .filter(Project.state.has(State.name != 'Done'))  # Project 상태
+        .filter(Stage.planned_date == tomorrow)
+        .all()
+    )

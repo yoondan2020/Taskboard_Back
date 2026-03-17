@@ -65,7 +65,7 @@ class Notification(Base):
     project_history_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("project_history.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
