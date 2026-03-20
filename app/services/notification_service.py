@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import date, timezone
 
 # schemas
-from app.schemas.notification import NotificationCreateReq
+from app.schemas.notification import NotificationCreateReq, NotificationItemRes
 from app.schemas.notification_recipient import NotificationRecipientCreateReq
 
 # models
@@ -154,3 +154,31 @@ def get_stages_due_tomorrow(db: Session, tomorrow: date):
         .filter(Stage.planned_date == tomorrow)
         .all()
     )
+
+# ====================================
+# 내 알림 
+def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]:
+    rows = (
+        db.query(NotificationRecipient, Notification, NotificationCode)
+        .join(Notification, NotificationRecipient.notification_id == Notification.id)
+        .join(NotificationCode, Notification.notification_code_id == NotificationCode.id)
+        .filter(NotificationRecipient.user_id == user_id)
+        .order_by(Notification.triggered_at.desc())
+        .all()
+    )
+
+    result = []
+    for recipient, notification, code in rows:
+        result.append(
+            NotificationItemRes(
+                notification_id=notification.id,
+                project_id=notification.project_id,
+                project_stage_id=notification.project_stage_id,
+                code=code.name,
+                channel=notification.channel,
+                triggered_at=notification.triggered_at,
+                is_read=recipient.is_read,
+            )
+        )
+
+    return result

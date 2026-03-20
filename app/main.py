@@ -13,7 +13,7 @@ from app.core.seed import seed_database
 import app.models
 
 # 라우터
-from app.api.routers import projects, stages, states, product_group, project_stage, project_history, auth, users
+from app.api.routers import projects, stages, states, product_group, project_stage, project_history, auth, users, notification
 
 # 앱 설정
 app = FastAPI(
@@ -33,6 +33,7 @@ api.include_router(project_stage.router)
 api.include_router(project_history.router)
 api.include_router(auth.router)
 api.include_router(users.router)
+api.include_router(notification.router)
 
 app.include_router(api)
 
@@ -75,7 +76,7 @@ def on_startup():
         """)).fetchone()
         print("DB 연결 정보:", row)
     seed_database()
-    start_scheduler()
+    # start_scheduler()
 
 @app.on_event("shutdown")
 def on_shutdown():

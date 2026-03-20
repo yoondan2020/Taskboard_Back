@@ -19,3 +19,14 @@ class NotificationBase(BaseModel):
 class NotificationCreateReq(NotificationBase):
     ...
 # ===============================
+
+class NotificationItemRes(BaseModel):
+    notification_id: int
+    project_id: int
+    project_stage_id: Optional[int] = None
+    code: str
+    channel: str
+    triggered_at: datetime
+    is_read: bool
+    title: Optional[str] = None
+    message: Optional[str] = None
