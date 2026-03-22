@@ -76,7 +76,7 @@ def on_startup():
         """)).fetchone()
         print("DB 연결 정보:", row)
     seed_database()
-    # start_scheduler()
+    start_scheduler()
 
 @app.on_event("shutdown")
 def on_shutdown():

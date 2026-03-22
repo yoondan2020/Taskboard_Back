@@ -117,8 +117,17 @@ def notice_deadline(
 
     # trigger_context
     trigger_context = {
-        "eta": ps.eta.isoformat() if ps.eta else None
+        "planned_date": ps.planned_date.isoformat() if ps.planned_date else None
     }
+
+    exists = db.query(Notification).filter(
+        Notification.project_stage_id == ps.id,
+        Notification.notification_code_id == noti_code.id,
+        Notification.trigger_context["planned_date"].astext == (ps.planned_date.isoformat() if ps.planned_date else None)
+    ).first()
+
+    if exists:
+        return exists
 
     # notification 생성
     noti = Notification(
