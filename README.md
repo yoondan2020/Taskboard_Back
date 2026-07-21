@@ -1,8 +1,9 @@
-# Lab Backend - 프로젝트 구조 및 개발 가이드
+# Taskboard Backend - 프로젝트 구조 및 개발 가이드
 
 ## 📋 프로젝트 개요
 
-**Lab Backend**는 연구소 프로젝트 관리 시스템의 백엔드로, FastAPI와 PostgreSQL을 기반으로 구축된 RESTful API 서버입니다.
+**Taskboard Backend**는 연구소 프로젝트 관리 시스템의 백엔드로, FastAPI와 PostgreSQL을 기반으로 구축된 RESTful API 서버입니다.
+(구 프로젝트명: Lab / Lab Backend)
 
 ### 주요 기능
 - 프로젝트 및 단계 관리 (CRUD)
@@ -10,13 +11,14 @@
 - 프로젝트 단계별 진행 상태 추적
 - 이력 관리 (상태 변경, 일정 변경)
 - 제품군, 단계, 상태 참조 데이터 관리
+- **알림 시스템** - 일정 정상화/변경/마감 임박 알림 생성 및 조회, 마감 하루 전 자동 알림(스케줄러)
 
 ---
 
 ## 🏗️ 디렉토리 구조
 
 ```
-Lab-Back/
+Taskboard_Back/
 ├── app/
 │   ├── api/
 │   │   └── routers/                # API 라우트 (HTTP 엔드포인트)
@@ -26,6 +28,7 @@ Lab-Back/
 │   │       ├── states.py           # 상태 참조 데이터
 │   │       ├── product_group.py    # 제품군 참조 데이터
 │   │       ├── project_history.py  # 이력 조회
+│   │       ├── notification.py     # 알림 조회
 │   │       ├── auth.py             # 인증
 │   │       └── users.py            # 사용자 관리
 │   ├── models/                     # SQLAlchemy ORM 모델
@@ -36,12 +39,19 @@ Lab-Back/
 │   │   ├── state.py                # State 참조 데이터
 │   │   ├── product_group.py        # ProductGroup 참조 데이터
 │   │   ├── project_history.py      # 이력 테이블
-│   │   └── enums.py                # 열거형 (UserRole, StateID 등)
+│   │   ├── notification.py         # 알림 테이블
+│   │   ├── notification_code.py    # 알림 유형 참조 데이터
+│   │   ├── notification_recipient.py # 알림 수신자(읽음여부) 테이블
+│   │   └── enums.py                # 열거형 (UserRole, StateID, NotificationCodeType 등)
 │   ├── services/                   # 비즈니스 로직
 │   │   ├── project_service.py      # 프로젝트 서비스
 │   │   ├── project_stage_service.py
 │   │   ├── project_history_service.py
+│   │   ├── notification_service.py # 알림 생성/조회 서비스
 │   │   └── user_service.py
+│   ├── scheduler/                  # 백그라운드 스케줄러
+│   │   ├── scheduler.py            # APScheduler 기반 크론 작업 (매일 00:00 마감 알림)
+│   │   └── deadline_scheduler.py   # 마감 하루 전 알림 생성 로직
 │   ├── schemas/                    # Pydantic 요청/응답 스키마
 │   ├── core/                       # 핵심 설정 및 유틸리티
 │   │   ├── config.py               # 환경 설정
@@ -75,7 +85,7 @@ source .venv/bin/activate
 ### 2. 환경 변수 설정 (.env)
 
 ```env
-DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/lab_db
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/taskboard_db
 JWT_SECRET=your_secret_key_here
 CORS_ORIGINS=["http://localhost:5173"]
 ```
@@ -106,11 +116,13 @@ make restart
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
+앱 시작(startup) 시점에 테이블 생성 → 시드 데이터 삽입(`seed_database()`) → 백그라운드 스케줄러 시작(`start_scheduler()`) 순으로 초기화됩니다.
+
 ---
 
 ## 🔌 API 엔드포인트 구조
 
-모든 API는 `/api/lab/v1` 프리픽스로 구성되어 있다.
+모든 API는 `/api/v1` 프리픽스로 구성되어 있다.
 
 ### 프로젝트 (Project)
 - `GET /projects` - 프로젝트 목록 조회
@@ -138,6 +150,10 @@ make restart
 ### 이력 (History)
 - `GET /projects/{project_id}/history` - 프로젝트 변경 이력 조회
 
+### 알림 (Notification)
+- `GET /notification` - 내 알림 목록 조회 (읽음 여부 포함)
+- ⚠️ 알림 생성/읽음 처리 API는 아직 별도 엔드포인트가 없고, 서비스 계층 함수(`notice_normalized`, `notice_schedule_update`, `notice_deadline`)가 다른 도메인 로직(단계 수정 등) 처리 중 내부적으로 호출되는 구조입니다.
+
 ### 인증 (Auth)
 - `POST /auth/login` - 로그인
 - `POST /auth/register` - 사용자 등록
@@ -145,6 +161,34 @@ make restart
 ### 사용자 (User)
 - `GET /users` - 사용자 목록 조회
 - `GET /users/{user_id}` - 사용자 상세 조회
+
+---
+
+## 🔔 알림(Notification) 시스템
+
+### 알림 유형 (`NotificationCodeType`)
+| 코드 | 설명 |
+|---|---|
+| `NOTICE_NORMALIZED` | 지연 상태였던 단계가 정상화됨 |
+| `NOTICE_SCHEDULE_UPDATED` | 일정(계획일/ETA/실행일 등) 변경됨 |
+| `NOTICE_DEADLINE` | 마감(계획일) 하루 전 |
+| `NOTICE_REASON_MISSING` | (정의되어 있으나 아직 트리거 로직 미구현) |
+| `NOTICE_OVERDUE` | (정의되어 있으나 아직 트리거 로직 미구현) |
+| `NOTICE_DELAY` | (정의되어 있으나 아직 트리거 로직 미구현) |
+
+### 마감 임박 자동 알림 (스케줄러)
+- `app/scheduler/scheduler.py`가 **APScheduler**로 매일 00:00에 `job()`을 실행
+- `Done`이 아닌 상태이면서 `planned_date`가 내일인 단계를 조회해 `notice_deadline()` 호출
+- 동일한 `planned_date` 값으로 이미 알림이 있으면 중복 생성하지 않음 (`trigger_context`의 `planned_date` 비교)
+- `deadline_scheduler.py`에는 유사한 로직의 단발성 실행 함수(`deadline_scheduler()`)도 별도로 존재 — 스케줄러용(`scheduler.py`)과 역할이 겹치므로 정리가 필요해 보임
+
+### 수신자 및 읽음 처리
+- 알림은 `notification` 테이블에 1건 생성되고, 관련 사용자(단계 담당자 `stage_owner_id`, 프로젝트 담당자 `owner_id`)마다 `notification_recipient` 행이 생성되어 사용자별 읽음 여부(`is_read`)를 관리
+- ⚠️ 현재 `is_read`를 갱신하는 API/서비스 함수는 아직 없음 (조회만 가능)
+
+### 프론트엔드 연동 현황
+- `features/notification` 모듈에 `NotificationModal.tsx`, `notifications.store.ts` 구현되어 있고 헤더의 종 아이콘(`BellIcon.tsx`)과 연결
+- 현재는 목록 조회(`fetch`)만 구현되어 있고, 읽음 처리 액션은 스토어에 주석(`// update:`)만 있고 미구현 상태
 
 ---
 
@@ -196,6 +240,9 @@ raise PermissionDeniedException("프로젝트 수정 권한이 없습니다")
 | **product_group** | 제품군 참조 데이터 | 개발, 협업, 설계변경 등 |
 | **project_stage_history** | 단계 상태 변경 이력 | from_state → to_state 추적 |
 | **project_schedule_history** | 일정 변경 이력 | 계획일, 실행일, 완료 예정일 변경 기록 |
+| **notification** | 알림 | project/project_stage/알림코드/트리거 컨텍스트(JSONB) 보관 |
+| **notification_code** | 알림 유형 참조 데이터 | NOTICE_DEADLINE, NOTICE_NORMALIZED 등 |
+| **notification_recipient** | 알림 수신자 | user별 읽음 여부(is_read), (notification_id, user_id) UNIQUE |
 
 ### 관계 (Relationships)
 
@@ -204,6 +251,8 @@ raise PermissionDeniedException("프로젝트 수정 권한이 없습니다")
 - **ProjectStage** ← has one → **State** (상태)
 - **ProjectStage** → references **User** (stage_owner)
 - **Project** → references **User** (owner)
+- **Notification** → references **Project**, **Stage**, **NotificationCode**, **ProjectHistory**
+- **Notification** ← has many → **NotificationRecipient** → references **User**
 
 ### 성능 최적화
 
@@ -334,7 +383,7 @@ class Settings(BaseSettings):
 
 ### 초기 데이터 (Seed)
 
-`app/core/seed.py`에서 앱 시작 시 자동으로 실행되며, 참조 데이터(Stage, State, ProductGroup 등)를 데이터베이스에 생성한다.
+`app/core/seed.py`에서 앱 시작 시 자동으로 실행되며, 참조 데이터(Stage, State, ProductGroup, NotificationCode 등)를 데이터베이스에 생성한다.
 
 ---
 
@@ -364,6 +413,8 @@ python-jose         # JWT 토큰
 passlib             # 비밀번호 해시
 python-multipart    # 폼 데이터 처리
 ```
+
+> ⚠️ **의존성 확인 필요**: `app/scheduler/scheduler.py`가 `apscheduler` 패키지를 사용하지만 현재 `requirements.txt`에는 포함되어 있지 않습니다. 새 환경에서 `pip install -r requirements.txt`만 실행하면 서버 startup 시 `ModuleNotFoundError`가 발생할 수 있으니 `requirements.txt`에 `apscheduler` 추가가 필요합니다.
 
 ---
 
@@ -417,5 +468,16 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 
 ---
 
-**최종 수정**: 2026-01-27
+## 📌 알려진 이슈 / TODO
+- ~~프로젝트명이 Lab → Taskboard로 변경되었으나 코드에는 옛 이름이 남아있었음~~ → `app/core/config.py`의 `APP_TITLE`을 `"Taskboard Backend"`로, 프론트 `package.json`의 `name`을 `"taskboard"`로 수정 완료 (2026-07-21)
+- API 프리픽스가 문서(예전 버전: `/api/lab/v1`)와 실제 코드(`/api/v1`)가 달랐던 점 수정 반영함 — 프론트 `.env`의 `VITE_API_BASE_URL`과 일치
+- `requirements.txt`에 `apscheduler` 미포함
+- `app/scheduler/scheduler.py`와 `deadline_scheduler.py`의 마감 알림 로직 중복 — 정리 필요
+- 알림 읽음 처리(`is_read` 업데이트) API 미구현
+- `NOTICE_REASON_MISSING`, `NOTICE_OVERDUE`, `NOTICE_DELAY` 알림 코드는 정의만 되어 있고 트리거 로직 미구현
+- `app/_init_.py` 파일명이 `__init__.py`가 아님 (언더스코어 1개) — 의도 확인 필요
+
+---
+
+**최종 수정**: 2026-07-21
 **작성자**: 윤소현

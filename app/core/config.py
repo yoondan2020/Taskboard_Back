@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     CORS_CREDENTIALS: bool = True
     
     # ===== Application =====
-    APP_TITLE: str = "LAB Backend"
+    APP_TITLE: str = "Taskboard Backend"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     
