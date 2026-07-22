@@ -23,10 +23,11 @@ class NotificationCreateReq(NotificationBase):
 class NotificationItemRes(BaseModel):
     notification_id: int
     project_id: int
+    project_title: str
     project_stage_id: Optional[int] = None
+    project_stage_name: Optional[str] = None
     code: str
     channel: str
     triggered_at: datetime
     is_read: bool
-    title: Optional[str] = None
     message: Optional[str] = None

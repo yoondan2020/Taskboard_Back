@@ -176,18 +176,32 @@ def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]
         .all()
     )
 
+    print("ROWS COUNT:", len(rows))
+
     result = []
+
     for recipient, notification, code in rows:
-        result.append(
-            NotificationItemRes(
-                notification_id=notification.id,
-                project_id=notification.project_id,
-                project_stage_id=notification.project_stage_id,
-                code=code.name,
-                channel=notification.channel,
-                triggered_at=notification.triggered_at,
-                is_read=recipient.is_read,
-            )
+        print("NOTIFICATION ID:", notification.id)
+        print("PROJECT ID:", notification.project_id)
+        print("PROJECT:", notification.project)
+        print("TITLE:", notification.project.title)
+
+        item = NotificationItemRes(
+            notification_id=notification.id,
+            project_id=notification.project_id,
+            project_title=notification.project.title,
+            project_stage_id=notification.project_stage_id,
+            project_stage_name=(
+                notification.project_stage.name
+                if notification.project_stage else None
+            ),
+            code=code.name,
+            channel=notification.channel,
+            triggered_at=notification.triggered_at,
+            is_read=recipient.is_read,
         )
+
+        print(item.model_dump())
+        result.append(item)
 
     return result

@@ -37,9 +37,11 @@ def start_scheduler():
     if not scheduler.running:
         scheduler.add_job(
             job,
-            "cron",
-            hour=0,
-            minute=0,
+            # "cron",
+            # hour=0,
+            # minute=0,
+            "interval",
+            seconds=10,
             id="deadline_notice_job",
             replace_existing=True,
             max_instances=1,
