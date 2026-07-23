@@ -24,3 +24,14 @@ def my_notifications(
         db=db,
         user_id=current_user.id,
     )
+
+# 내 알림 읽음 처리
+@router.post("/{notification_id}")
+def read_notification(
+    notification_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return notification_service.read_notification(
+        notification_id, current_user.id, db
+    )

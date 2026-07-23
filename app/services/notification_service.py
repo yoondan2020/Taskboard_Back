@@ -205,3 +205,24 @@ def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]
         result.append(item)
 
     return result
+
+# ===================================
+# notification 알림 읽기
+def read_notification(notification_id: int, user_id: int, db: Session):
+    notification = (
+        db.query(NotificationRecipient)
+            .filter(
+                NotificationRecipient.notification_id == notification_id,
+                NotificationRecipient.user_id == user_id
+            )
+            .first()
+    )
+
+    if not notification:
+        return None
+    
+    notification.is_read = True
+    db.commit()
+    db.refresh(notification)
+
+    return notification
