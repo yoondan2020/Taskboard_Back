@@ -118,13 +118,13 @@ def notice_deadline(
 
     # trigger_context
     trigger_context = {
-        "planned_date": ps.planned_date.isoformat() if ps.planned_date else None
+        "due_date": ps.due_date.isoformat() if ps.due_date else None
     }
 
     exists = db.query(Notification).filter(
         Notification.project_stage_id == ps.id,
         Notification.notification_code_id == noti_code.id,
-        Notification.trigger_context["planned_date"].astext == (ps.planned_date.isoformat() if ps.planned_date else None)
+        Notification.trigger_context["due_date"].astext == (ps.due_date.isoformat() if ps.due_date else None)
     ).first()
 
     if exists:
@@ -278,7 +278,7 @@ def get_stages_due_tomorrow(db: Session, tomorrow: date):
         .join(State, Stage.state_id == State.id)
         .filter(State.name != 'Done')  # Stage 상태
         .filter(Project.state.has(State.name != 'Done'))  # Project 상태
-        .filter(Stage.planned_date == tomorrow)
+        .filter(Stage.due_date == tomorrow)
         .all()
     )
 
@@ -290,7 +290,7 @@ def get_stages_delay(db:Session, today: date):
         .join(State, Stage.state_id == State.id)
         .filter(State.name != 'Done')
         .filter(Project.state.hase(State.name != 'Done'))
-        .filter(Stage.planned_date <= today)
+        .filter(Stage.due_date < today)
         .all()
     )
 

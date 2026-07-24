@@ -10,9 +10,9 @@ class StageCreateReq(BaseModel):
 
     state_id: Optional[int] = Field(None, gt=0)
     
-    planned_date: Optional[date] = None
-    act_date: Optional[date] = None
+    due_date: Optional[date] = None
     eta: Optional[date] = None
+    completed_date: Optional[date] = None
     
     note: Optional[str] = None
     remark: Optional[str] = None
@@ -31,9 +31,9 @@ class StageRes(BaseModel):
     
     sequence: int
 
-    planned_date: Optional[date] = None
-    act_date: Optional[date] = None
+    due_date: Optional[date] = None
     eta: Optional[date] = None
+    completed_date: Optional[date] = None
     
     note: Optional[str] = None
     remark: Optional[str] = None
@@ -46,14 +46,14 @@ class StageUpdateReq(BaseModel):
     name: Optional[str] = None
     state_id: Optional[int] = None
     
-    planned_date: Optional[date] = None
-    act_date: Optional[date] = None
+    due_date: Optional[date] = None
     eta: Optional[date] = None
+    completed_date: Optional[date] = None
     
     note: Optional[str] = None
     remark: Optional[str] = None
     
-    eta_change_reason: Optional[str] = None
+    change_reason: Optional[str] = None
 
 # Stage 디테일 응답
 class StageDetailRes(BaseModel):
@@ -68,9 +68,9 @@ class StageDetailRes(BaseModel):
     state_id: Optional[int] = None
     state_name: Optional[str] = None
     
-    planned_date: Optional[date] = None
-    act_date: Optional[date] = None
+    due_date: Optional[date] = None
     eta: Optional[date] = None
+    completed_date: Optional[date] = None
 
     note: Optional[str] = None
     remark: Optional[str] = None

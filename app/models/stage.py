@@ -36,10 +36,12 @@ class Stage(Base):
         ForeignKey("user.id"),
         nullable=True,
     )
-
-    planned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    act_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # 마감일
+    due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # 지연시 마감 예정일
     eta: Mapped[Optional[date]] = mapped_column(Date, nullable=True) 
+    # 실제 완료일
+    completed_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

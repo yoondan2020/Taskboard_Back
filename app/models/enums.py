@@ -52,7 +52,7 @@ class NotificationCodeType(str, Enum):
    NOTICE_SCHEDULE_UPDATED= "NOTICE_SCHEDULE_UPDATED"
 
 class NotificationScheduleType(str, Enum):
-    PLANNED_DATE = "planned_date"
+    DUE_DATE = "due_date"
     ETA = "eta"
-    ACT_DATE = "act_date"
+    COMPLETED_DATE = "completed_date"
     CHANGE_OWNER = "change_owner"

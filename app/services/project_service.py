@@ -142,7 +142,7 @@ def _build_project_summary(project: Project) -> ProjectSummaryRes:
             id=current_stage.id,
             stage_name=current_stage.name,
             state_name=state_name,
-            planned_date=current_stage.planned_date,
+            due_date=current_stage.due_date,
             stage_owner_id=current_stage.stage_owner_id,
             stage_owner_name=current_stage.stage_owner.name if current_stage.stage_owner else None,
         ) if current_stage else None,
@@ -270,9 +270,9 @@ def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
                 state_id=ps.state_id,
                 state_name=state_name,         # State 이름
                 
-                planned_date=ps.planned_date,
-                act_date=ps.act_date,
+                due_date=ps.due_date,
                 eta=ps.eta,
+                completed_date=ps.completed_date,
                 
                 note=ps.note,
                 remark=ps.remark,

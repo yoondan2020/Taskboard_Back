@@ -281,7 +281,7 @@ def seed_stages(db: Session) -> None:
                 sequence=seq,
                 note=f"{stage_name} 단계",
                 stage_owner_id=stage_owner.id if stage_owner else None,
-                planned_date=planned,
+                due_date=planned,
             )
             db.add(stage)
     

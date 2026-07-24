@@ -100,9 +100,9 @@ def create_project_stage(project_id: int, payload: StageCreateReq, db: Session, 
             note=payload.note, 
             remark=payload.remark,
 
-            planned_date=payload.planned_date,
-            act_date=payload.act_date,
+            due_date=payload.due_date,
             eta=payload.eta,
+            completed_date=payload.completed_date,
         )
 
         db.add(ps)
@@ -114,6 +114,7 @@ def create_project_stage(project_id: int, payload: StageCreateReq, db: Session, 
             project_id=project_id,
             project_stage_id=ps.id,
             event_type=ProjectHistoryEventType.STAGE_CREATED,
+            old_value=ps.name,
             changed_by=current_user
         )
         
@@ -184,9 +185,9 @@ def detail_project_stage(project_id: int, project_stage_id: int, db: Session) ->
         stage_owner_id=stage.stage_owner_id,
         stage_owner_name=stage.stage_owner.name if stage.stage_owner.name else None,
 
-        planned_date=stage.planned_date,
-        act_date=stage.act_date,
+        due_date=stage.due_date,
         eta=stage.eta,
+        complete_date=stage.complete_date,
 
         note=stage.note,
         remark=stage.remark,
@@ -277,56 +278,46 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         
         stage.state_id = payload.state_id
 
-    
 
-    # planned_date 계획일 변경 + 알림 트리거
-    if payload.planned_date is not None and payload.planned_date != stage.planned_date:
-        history = _add_history(
-            db,
-            project_id=project_id,
-            project_stage_id=project_stage_id,
-            event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
-            field="planned_date",
-            old_value=stage.planned_date,
-            new_value=payload.planned_date,
-            changed_by=current_user
-        )
-        stage.planned_date = payload.planned_date
-        
-        # 알림 발송
-        notice_schedule_update(
-            stage, project, history.id, NotificationScheduleType.PLANNED_DATE, payload.planned_date, db
-        )
-
-    # act_date 실행일 변경
-    if payload.act_date is not None and payload.act_date != stage.act_date:
-        history = _add_history(
-            db,
-            project_id=project_id,
-            project_stage_id=project_stage_id,
-            event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
-            field="act_date",
-            old_value=stage.act_date,
-            new_value=payload.act_date,
-            changed_by=current_user
-        )
-        stage.act_date = payload.act_date
-
-        # 알림 발송
-        notice_schedule_update(
-            stage, project, history.id, NotificationScheduleType.ACT_DATE, payload.act_date, db
-        )
-        
-    # eta 예상 완료일 변경/입력
-    if payload.eta is not None and payload.eta != stage.eta:
-        is_change = stage.eta is not None  
-
-        reason = (payload.eta_change_reason or "").strip()
+    # due_date 마감일 변경 + 알림 트리거
+    if payload.due_date is not None and payload.due_date != stage.due_date:
+        is_change = stage.due_date is not None 
+        reason = (payload.change_reason or "").strip()
 
         if is_change and not reason:
             raise InvalidInputException(
                 "eta_change_reason",
-                "예상 완료일 변경 사유가 필요합니다."
+                "마감일 변경 사유가 필요합니다."
+            )
+    
+        history = _add_history(
+            db,
+            project_id=project_id,
+            project_stage_id=project_stage_id,
+            event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
+            field="due_date",
+            old_value=stage.due_date,
+            new_value=payload.due_date,
+            content=reason if is_change else None,  
+            changed_by=current_user
+        )
+        stage.due_date = payload.due_date
+        
+        # 알림 발송
+        notice_schedule_update(
+            stage, project, history.id, NotificationScheduleType.DUE_DATE, payload.due_date, db
+        )
+
+    # eta 지연시 마감 예정일 변경/입력
+    if payload.eta is not None and payload.eta != stage.eta:
+        is_change = stage.eta is not None  
+
+        reason = (payload.change_reason or "").strip()
+
+        if is_change and not reason:
+            raise InvalidInputException(
+                "eta_change_reason",
+                "마감 예정일 변경 사유가 필요합니다."
             )
 
         history = _add_history(
@@ -347,7 +338,26 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         notice_schedule_update(
             stage, project, history.id, NotificationScheduleType.ETA, payload.eta, db
         )
-    
+
+    # complete_date 실제 완료일 변경
+    if payload.completed_date is not None and payload.completed_date != stage.completed_date:
+        history = _add_history(
+            db,
+            project_id=project_id,
+            project_stage_id=project_stage_id,
+            event_type=ProjectHistoryEventType.STAGE_FIELD_CHANGED,
+            field="completed_date",
+            old_value=stage.completed_date,
+            new_value=payload.completed_date,
+            changed_by=current_user
+        )
+        stage.completed_date = payload.completed_date
+
+        # 알림 발송
+        notice_schedule_update(
+            stage, project, history.id, NotificationScheduleType.ACT_DATE, payload.act_date, db
+        )
+        
     #  note 업무 내용 변경
     if payload.note is not None and payload.note != stage.note:
         _add_history(
@@ -458,7 +468,6 @@ def change_stage_owner(
 # ====================
 # Delete
 def delete_project_stage(project_id: int, project_stage_id: int, db: Session, current_user: User) -> None:
-
 
     # stage 존재 여부 확인
     stage = (
