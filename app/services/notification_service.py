@@ -20,7 +20,7 @@ from app.models.user import User
 from app.models.notification_recipient import NotificationRecipient
 from app.models.notification import Notification
 from app.models.notification_code import NotificationCode
-from app.models.enums import NotificationCodeType, NotificationScheduleType
+from app.models.enums import NotificationCodeType, NotificationScheduleType, ProjectHistoryEventType
 
 # Notification Code
 def notification_code(notificationCodeType: NotificationCodeType, db:Session):
@@ -105,7 +105,8 @@ def notice_schedule_update(
     return noti
 
 # ===========================================
-# 마감 하루 전 알림 보내기
+# 마감 하루 전 알림 보내기 
+# NOTICE_DEADLIN
 def notice_deadline(
     ps: Stage,
     p: Project,
@@ -152,7 +153,124 @@ def notice_deadline(
 
     return noti
 
+# ====================================
+# NOTICE_REASON_MISSING
+# 지연 발생 & ETA 미입력
+def notice_reason_missing(
+        ps: Stage,
+        db: Session
+)->Notification:
 
+    # 알림코드
+    noti_code=notification_code(NotificationCodeType.NOTICE_REASON_MISSING, db)
+
+    # trigger_context
+    trigger_context = {
+        "NOTICE_REASON_MISSING": "지연 발생 사유 미입력"
+    }
+
+    # 존재 확인(없으면 알림)
+    exists = db.query(ProjectHistory).filter(
+        ProjectHistory.project_stage_id == ps.id,
+        ProjectHistory.event_type == ProjectHistoryEventType.STAGE_FIELD_CHANGED,
+        ProjectHistory.content.isnot(None)
+    ).first()
+
+    if exists:
+        return None
+
+    # 중복 체크
+    already = db.query(Notification).filter(
+        Notification.project_stage_id == ps.id,
+        Notification.notification_code_id == noti_code.id
+    ).first()
+
+    if already:
+        return None
+
+    # notification 생성
+    noti = Notification(
+        project_id = ps.project_id,
+        project_stage_id = ps.id,
+        notification_code_id = noti_code.id,
+        trigger_context = trigger_context
+    )
+
+    db.add(noti)
+    db.flush()
+
+    # 수신자 = 프로젝트 단계 담당자
+    recipient_ids = set()
+    if ps.stage_owner_id:
+        recipient_ids.add(ps.stage_owner_id)
+
+    for uid in recipient_ids:
+        db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+
+    return noti
+
+# ====================================
+# NOTICE_DELAY
+# 지연 발생 & ETA/사유 입력
+def notice_delay(
+        ps:Stage,
+        p: Project,
+        db:Session
+) -> Notification:
+
+    # 알림 코드
+    noti_code = notification_code(NotificationCodeType.NOTICE_DELAY, db)
+
+    # trigger_context
+    trigger_context = {
+        "NOTICE_DELAY": "지연 발생"
+    }
+
+    # 존재 확인(있으면 알림)
+    exists = db.query(ProjectHistory).filter(
+        ProjectHistory.project_stage_id == ps.id,
+        ProjectHistory.event_type == ProjectHistoryEventType.STAGE_FIELD_CHANGED,
+        ProjectHistory.content.isnot(None)
+    ).first()
+
+    if exists:
+        return exists
+
+    # 중복 체크
+    already = db.query(Notification).filter(
+        Notification.project_stage_id == ps.id,
+        Notification.notification_code_id == noti_code.id
+    ).first()
+
+    if already:
+        return None
+
+    # 알림 생성
+    noti = Notification(
+    project_id = ps.project_id,
+    project_stage_id = ps.id,
+    notification_code_id = noti_code.id,
+    trigger_context = trigger_context
+    )
+
+    db.add(noti)
+    db.flush()
+    
+
+    # 수신자 = 단계 담당자, 프로젝트 담당자
+    recipient_ids = set()
+    if ps.stage_owner_id:
+        recipient_ids.add(ps.stage_owner_id)
+    if p.owner_id:
+        recipient_ids.add(p.owner_id)
+
+    for uid in recipient_ids:
+        db.add(NotificationRecipient(notification_id=noti.id, user_id=uid))
+
+    return noti
+
+# ====================================
+# 내일이 마감인 stages 가져오기
 def get_stages_due_tomorrow(db: Session, tomorrow: date):
     return (
         db.query(Stage, Project)
@@ -164,8 +282,21 @@ def get_stages_due_tomorrow(db: Session, tomorrow: date):
         .all()
     )
 
+# 지연된 stages 가져오기
+def get_stages_delay(db:Session, today: date):
+    return (
+        db.query(Stage, Project)
+        .join(Project, Stage.project_id == Project.id)
+        .join(State, Stage.state_id == State.id)
+        .filter(State.name != 'Done')
+        .filter(Project.state.hase(State.name != 'Done'))
+        .filter(Stage.planned_date <= today)
+        .all()
+    )
+
+
 # ====================================
-# 내 알림 
+# 내 알림 가져오기
 def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]:
     rows = (
         db.query(NotificationRecipient, Notification, NotificationCode)
