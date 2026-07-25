@@ -4,8 +4,8 @@ from datetime import date, timedelta
 
 from app.db import SessionLocal
 from app.services.notification_service import (
-    get_stages_due_tomorrow,
-    notice_deadline
+    get_stages_due_tomorrow, get_stages_delay,
+    notice_deadline, notice_reason_missing, notice_delay
 )
 
 scheduler = BackgroundScheduler()
@@ -17,11 +17,17 @@ def job():
     db = SessionLocal()
 
     try:
+        today = date.today()
         tomorrow = date.today() + timedelta(days=1)
-        stages = get_stages_due_tomorrow(db, tomorrow)
+        stages_due_tomorrow = get_stages_due_tomorrow(db, tomorrow)
+        delay_stages = get_stages_delay(db, today)
 
-        for ps, p in stages:
+        for ps, p in stages_due_tomorrow:
             notice_deadline(ps, p, db)
+
+        for ps, p in delay_stages:
+            notice_reason_missing(ps, db)
+            notice_delay(ps, p, db)
 
         db.commit()
 
@@ -42,7 +48,7 @@ def start_scheduler():
             # minute=0,
             "interval",
             seconds=10,
-            id="deadline_notice_job",
+            id="notice_job",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

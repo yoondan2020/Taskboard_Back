@@ -29,5 +29,6 @@ class NotificationItemRes(BaseModel):
     code: str
     channel: str
     triggered_at: datetime
+    trigger_context: Optional[str] = None
     is_read: bool
     message: Optional[str] = None

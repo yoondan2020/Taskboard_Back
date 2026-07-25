@@ -32,7 +32,7 @@ def notification_code(notificationCodeType: NotificationCodeType, db:Session):
 
 
 # ===========================================
-# NOTICE_NORMALIZED
+# NOTICE_NORMALIZED 히스토리 기록용 알림 X
 def notice_normalized(
         ps: Stage, 
         p: Project,
@@ -211,21 +211,13 @@ def notice_reason_missing(
 
 # ====================================
 # NOTICE_DELAY
-# 지연 발생 & ETA/사유 입력
+# 지연 발생 & ETA/사유 입력된 경우
 def notice_delay(
         ps:Stage,
         p: Project,
         db:Session
 ) -> Notification:
-
-    # 알림 코드
-    noti_code = notification_code(NotificationCodeType.NOTICE_DELAY, db)
-
-    # trigger_context
-    trigger_context = {
-        "NOTICE_DELAY": "지연 발생"
-    }
-
+    
     # 존재 확인(있으면 알림)
     exists = db.query(ProjectHistory).filter(
         ProjectHistory.project_stage_id == ps.id,
@@ -233,9 +225,16 @@ def notice_delay(
         ProjectHistory.content.isnot(None)
     ).first()
 
-    if exists:
-        return exists
+    if not exists:
+        return None
 
+    # 알림 코드
+    noti_code = notification_code(NotificationCodeType.NOTICE_DELAY, db)
+
+    # trigger_context
+    trigger_context = {
+        "NOTICE_DELAY": exists.content
+    }
     # 중복 체크
     already = db.query(Notification).filter(
         Notification.project_stage_id == ps.id,
@@ -289,13 +288,23 @@ def get_stages_delay(db:Session, today: date):
         .join(Project, Stage.project_id == Project.id)
         .join(State, Stage.state_id == State.id)
         .filter(State.name != 'Done')
-        .filter(Project.state.hase(State.name != 'Done'))
+        .filter(Project.state.has(State.name != 'Done'))
         .filter(Stage.due_date < today)
         .all()
     )
 
 
 # ====================================
+# trigger_context
+def build_trigger_message(context: dict | None) -> str | None:
+    if not context:
+        return None
+    if "NOTICE_DELAY" in context:
+        return context.get("NOTICE_DELAY")
+    
+    return str(context)
+
+
 # 내 알림 가져오기
 def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]:
     rows = (
@@ -329,6 +338,7 @@ def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]
             code=code.name,
             channel=notification.channel,
             triggered_at=notification.triggered_at,
+            trigger_context=build_trigger_message(notification.trigger_context),
             is_read=recipient.is_read,
         )
 
