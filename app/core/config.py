@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     
     # ===== File Upload =====
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
-    UPLOAD_DIR: str = "uploads"
+
+    # ===== AWS S3 =====
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_BUCKET_NAME: str
     
     # ===== Logging =====
     LOG_LEVEL: str = "INFO"
