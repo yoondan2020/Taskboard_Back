@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -21,11 +21,13 @@ router = APIRouter(prefix="/project", tags=["Projects"])
 # =========================
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(
-    payload: ProjectCreateReq,
+    payload: str = Form(...),
+    thumbnail: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project_service.create_project(db, payload, current_user)
+    payload = ProjectCreateReq.model_validate_json(payload)
+    return project_service.create_project(db, payload, thumbnail, current_user)
 
 
 # =========================

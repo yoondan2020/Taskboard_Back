@@ -29,6 +29,9 @@ class S3Service:
             }
         )
 
-        return key
+        url = f"https://{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+        
+        return url
+
 
     

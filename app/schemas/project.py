@@ -11,7 +11,6 @@ from app.schemas.stage import StageDetailRes
 
 class ProjectBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    thumbnail_url: Optional[str] = None
     product_group_id: int
     state_id: int
     goal_due_date: Optional[date] = None
@@ -66,7 +65,7 @@ class ProjectStageSummary(BaseModel):
     state_name: Optional[str] = None
     stage_name: Optional[str] = None
     
-    planned_date: Optional[date] = None
+    due_date: Optional[date] = None
 
 
 class ProjectProgress(BaseModel):

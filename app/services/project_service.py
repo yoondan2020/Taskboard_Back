@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 from datetime import datetime, timedelta, date
 from sqlalchemy import or_, func
+from fastapi import UploadFile
 
 # models
 from app.models.project import Project
@@ -20,6 +21,7 @@ from app.schemas.stage import StageDetailRes
 
 # service
 from app.services import project_history_service
+from app.services import s3_service
 
 # exceptions
 from app.core.exceptions import (
@@ -155,7 +157,7 @@ def _build_project_summary(project: Project) -> ProjectSummaryRes:
 
 # =========================
 # 프로젝트 Create
-def create_project(db: Session, payload: ProjectCreateReq, current_user: User) -> Project:
+def create_project(db: Session, payload: ProjectCreateReq, thumbnail: UploadFile, current_user: User) -> Project:
 
     # 0) 입력값 무결성 검증
     state = db.query(State).filter(State.id == payload.state_id).first()
@@ -167,11 +169,16 @@ def create_project(db: Session, payload: ProjectCreateReq, current_user: User) -
     ).first()
     if not pg:
         raise product_group_not_found(payload.product_group_id)
+
+    # 프로젝트 썸네일 S3 등록
+    thumbnail_url = None
+    if thumbnail:
+        thumbnail_url = s3_service.S3Service().upload_thumbnail(thumbnail)
     
     # 1) 프로젝트 생성
     p = Project(
         title = payload.title,
-        thumbnail_url = payload.thumbnail_url,
+        thumbnail_url = thumbnail_url,
         product_group_id = payload.product_group_id,
         state_id = payload.state_id,
         goal_due_date = payload.goal_due_date,
@@ -319,8 +326,8 @@ def get_urgent_project_count(db: Session) -> int:
         .filter(Stage.state_id != StateID.COMPLETED)
         .filter(
             or_(
-                Stage.planned_date < now,              # 과거 모두
-                Stage.planned_date <= urgent_deadline  # 미래 3일 이내
+                Stage.due_date < now,              # 과거 모두
+                Stage.due_date <= urgent_deadline  # 미래 3일 이내
             )
         )
         .distinct()
@@ -342,8 +349,8 @@ def get_urgent_projects(db: Session) -> list[ProjectSummaryRes]:
         .filter(Stage.state_id != StateID.COMPLETED)
         .filter(
             or_(
-                Stage.planned_date < now,              # 과거 모두
-                Stage.planned_date <= urgent_deadline  # 미래 3일 이내
+                Stage.due_date < now,              # 과거 모두
+                Stage.due_date <= urgent_deadline  # 미래 3일 이내
             )
         )
         .options(
@@ -368,7 +375,7 @@ def get_projects_by_deadline(db: Session, target_date: date) -> list[ProjectSumm
         .filter(Project.state_id == StateID.IN_PROGRESS)
         .join(Project.stages)
         .filter(Stage.state_id != StateID.COMPLETED)
-        .filter(func.date(Stage.planned_date) == target_date)  # 특정 날짜만
+        .filter(func.date(Stage.due_date) == target_date)  # 특정 날짜만
         .options(
             joinedload(Project.product_group),
             joinedload(Project.owner),
@@ -478,7 +485,7 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
                     id=current_stage.id,
                     stage_name=current_stage.name,
                     state_name=state_name,
-                    planned_date=current_stage.planned_date,
+                    due_date=current_stage.due_date,
                     
                     stage_owner_id=current_stage.stage_owner_id,
                     stage_owner_name=current_stage.stage_owner.name if current_stage.stage_owner else None,
@@ -584,7 +591,7 @@ def get_my_related_projects(db: Session, current_user: User) -> list[ProjectSumm
                     id=current_stage.id,
                     stage_name=current_stage.name,
                     state_name=state_name,
-                    planned_date=current_stage.planned_date,
+                    due_date=current_stage.due_date,
                     stage_owner_id=current_stage.stage_owner_id,
                     stage_owner_name=current_stage.stage_owner.name if current_stage.stage_owner else None,
                 ) if current_stage else None,
@@ -622,7 +629,7 @@ def get_project_update(project_id: int, db: Session) -> ProjectUpdateReq:
     return ProjectUpdateReq(
         id=project.id,
         title=project.title,
-        thumbnail_url=project.thumbnail_url,
+        thumbnail_url=project.thumbnail,
         goal_due_date=project.goal_due_date,
         remark=project.remark,
         owner_id=project.owner_id,
