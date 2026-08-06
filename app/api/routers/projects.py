@@ -96,11 +96,13 @@ def get_project_update(project_id: int, db: Session = Depends(get_db)):
 @router.patch("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def update_project(
     project_id: int,
-    payload: ProjectUpdateReq,
+    payload: str = Form(...),
+    thumbnail: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project_service.update_project(project_id, payload, db, current_user)
+    payload = ProjectUpdateReq.model_validate_json(payload)
+    return project_service.update_project(project_id, payload, thumbnail, db, current_user)
 
 
 # 프로젝트 담당자 변경

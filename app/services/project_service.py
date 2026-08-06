@@ -629,25 +629,25 @@ def get_project_update(project_id: int, db: Session) -> ProjectUpdateReq:
     return ProjectUpdateReq(
         id=project.id,
         title=project.title,
-        thumbnail_url=project.thumbnail,
+        thumbnail_url=project.thumbnail_url,
         goal_due_date=project.goal_due_date,
         remark=project.remark,
         owner_id=project.owner_id,
         # product_group
         product_group_id=project.product_group_id,
-
         # state
         state_id=state.id,
     )
     
 # 프로젝트 Update
-def update_project(project_id: int, payload: ProjectUpdateReq, db: Session, current_user: User) -> Project:
+def update_project(project_id: int, payload: ProjectUpdateReq, thumbnail: UploadFile, db: Session, current_user: User) -> Project:
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
         raise project_not_found(project_id)
 
     # payload에서 들어온 값만 가져오기 (id 제외)
     data = payload.model_dump(exclude_unset=True, exclude={"id"})
+    new_thumbnail_url = None
 
     # 각 필드별로 체크하고 변경 시 히스토리 기록
     # 타이틀
@@ -664,17 +664,18 @@ def update_project(project_id: int, payload: ProjectUpdateReq, db: Session, curr
         p.title = data["title"]
         
     # 썸네일
-    if "thumbnail_url" in data and data["thumbnail_url"] != p.thumbnail_url:
+    if thumbnail:
+        new_thumbnail_url = s3_service.S3Service().upload_thumbnail(thumbnail)   
         _add_project_history(
             db=db,
             project_id=project_id,
             event_type=ProjectHistoryEventType.PROJECT_FIELD_CHANGED,
             field="thumbnail_url",
             old_value=p.thumbnail_url,
-            new_value=data["thumbnail_url"],
+            new_value=new_thumbnail_url,
             changed_by=current_user,
         )
-        p.thumbnail_url = data["thumbnail_url"]
+        p.thumbnail_url = new_thumbnail_url
 
     # 목표 완료일
     if "goal_due_date" in data and data["goal_due_date"] != p.goal_due_date:
