@@ -187,7 +187,7 @@ def detail_project_stage(project_id: int, project_stage_id: int, db: Session) ->
 
         due_date=stage.due_date,
         eta=stage.eta,
-        complete_date=stage.complete_date,
+        complete_date=stage.completed_date,
 
         note=stage.note,
         remark=stage.remark,
@@ -286,7 +286,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
 
         if is_change and not reason:
             raise InvalidInputException(
-                "eta_change_reason",
+                "change_reason",
                 "마감일 변경 사유가 필요합니다."
             )
     
@@ -316,7 +316,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
 
         if is_change and not reason:
             raise InvalidInputException(
-                "eta_change_reason",
+                "change_reason",
                 "마감 예정일 변경 사유가 필요합니다."
             )
 

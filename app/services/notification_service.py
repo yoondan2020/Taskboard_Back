@@ -154,7 +154,7 @@ def notice_deadline(
     return noti
 
 # ====================================
-# NOTICE_REASON_MISSING
+#                           
 # 지연 발생 & ETA 미입력
 def notice_reason_missing(
         ps: Stage,
