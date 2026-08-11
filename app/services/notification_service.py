@@ -350,20 +350,44 @@ def get_my_notifications(db: Session, user_id: int) -> list[NotificationItemRes]
 # ===================================
 # notification 알림 읽기
 def read_notification(notification_id: int, user_id: int, db: Session):
+
+    # 클릭한 알림 조회
     notification = (
-        db.query(NotificationRecipient)
+        db.query(Notification)
             .filter(
-                NotificationRecipient.notification_id == notification_id,
-                NotificationRecipient.user_id == user_id
+                Notification.id == notification_id
             )
             .first()
     )
 
     if not notification:
         return None
-    
-    notification.is_read = True
-    db.commit()
-    db.refresh(notification)
 
-    return notification
+    # 같은 프로젝트의 알림 ID 조회
+    notification_ids = (
+        db.query(Notification.id)
+            .filter(Notification.project_id == notification.project_id)
+            .all()
+    )
+
+    notification_ids = [n.id for n in notification_ids]
+
+    # 해당 사용자의 같은 프로젝트 알림 모두 읽음 처리
+    notification_recipients = (
+        db.query(NotificationRecipient)
+            .filter(
+                NotificationRecipient.notification_id.in_(notification_ids),
+                NotificationRecipient.user_id == user_id
+            )
+            .all()
+    )
+
+    if not notification_recipients:
+        return None
+    
+    for recipient in notification_recipients:
+        recipient.is_read = True
+
+    db.commit()
+
+    return notification_recipients
