@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.schemas.project_history import ProjectHistoryOut
 from app.services import project_history_service
+from app.models.enums import HistoryEventRangeType
 
 
 router = APIRouter(
@@ -27,12 +28,16 @@ def list_project_histories(
         default=None,
         description="Filter by event_type (stage_created, stage_deleted, stage_field_changed, project_created, project_deleted, project_field_changed)",
     ),
+    event_range: HistoryEventRangeType = Query(
+        default=HistoryEventRangeType.WEEK,
+    ),
     db: Session = Depends(get_db),
 ):
     return project_history_service.list_project_histories(
         project_id,
         project_stage_id,
         event_type,
+        event_range,
         db,
     )
 

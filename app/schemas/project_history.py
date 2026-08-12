@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
-from app.models.enums import ProjectHistoryEventType
+from app.models.enums import ProjectHistoryEventType, HistoryEventRangeType
 
 
 class CreateProjectHistory(BaseModel):

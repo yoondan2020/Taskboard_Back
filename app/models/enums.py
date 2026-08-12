@@ -40,6 +40,11 @@ class ProjectHistoryEventType(str, Enum):
     PROJECT_DELETED = "PROJECT_DELETED"
     PROJECT_FIELD_CHANGED = "PROJECT_FIELD_CHANGED"
 
+class HistoryEventRangeType(str, Enum):
+    WEEK = "7d"
+    MONTH = "1m"
+    ALL = "all"
+
 # ============================
 # Notification
 # ============================

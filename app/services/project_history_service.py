@@ -3,11 +3,12 @@ from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from datetime import timedelta, date
 
 from app.models.project import Project
 from app.models.project_history import ProjectHistory
 from app.schemas.project_history import CreateProjectHistory, ProjectHistoryOut
-from app.models.enums import ProjectHistoryEventType
+from app.models.enums import ProjectHistoryEventType, HistoryEventRangeType
 
 
 # ====================
@@ -42,10 +43,12 @@ def list_project_histories(
     project_id: int,
     project_stage_id: Optional[int],
     event_type: Optional[ProjectHistoryEventType],
+    event_range: Optional[HistoryEventRangeType],
     db: Session,
 ) -> List[ProjectHistoryOut]:
 
     project = db.query(Project).filter(Project.id == project_id).first()
+
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -60,6 +63,22 @@ def list_project_histories(
 
     if event_type:
         query = query.filter(ProjectHistory.event_type == event_type)
+
+    today = date.today()
+
+    match event_range:
+        case HistoryEventRangeType.WEEK:
+            query = query.filter(
+                ProjectHistory.changed_at > today - timedelta(days=7)
+            )
+
+        case HistoryEventRangeType.MONTH:
+            query = query.filter(
+                ProjectHistory.changed_at > today - timedelta(days=30)
+            )
+
+        case HistoryEventRangeType.ALL:
+            pass
 
     histories = query.all()
 

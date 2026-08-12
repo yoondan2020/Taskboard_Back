@@ -359,7 +359,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         )
         
     #  note 업무 내용 변경
-    if payload.note is not None and payload.note != stage.note:
+    if (payload.note or "") != (stage.note or ""):
         _add_history(
             db,
             project_id=project_id,
@@ -373,7 +373,7 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
         stage.note = payload.note
         
     #  remark 비고 변경
-    if payload.remark is not None and payload.remark != stage.remark:
+    if (payload.remark or "") != (stage.remark or ""):
         _add_history(
             db,
             project_id=project_id,
