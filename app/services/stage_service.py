@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
+from datetime import date
 
 # schemas
 from app.schemas.stage import StageCreateReq, StageRes, StageUpdateReq, StageDetailRes
@@ -13,7 +14,7 @@ from app.models.stage import Stage
 from app.models.project_history import ProjectHistory
 from app.models.state import State
 from app.models.project import Project
-from app.models.enums import ProjectHistoryEventType, StateType, NotificationScheduleType
+from app.models.enums import ProjectHistoryEventType, StateType, NotificationScheduleType, StateID
 from app.models.user import User
 
 # utils
@@ -245,7 +246,11 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
     # state 상태 변경 + 알림 트리거 추가
     if payload.state_id is not None and payload.state_id != stage.state_id:
         
-        # 기존 상태가 있으면 (변경)
+        # state == done 이면, completed_date 추가
+        if payload.state_id == StateID.COMPLETED:
+            stage.completed_date = date.today()
+
+        # 기존 상태가 있으면 히스토리 저장
         if stage.state_id is not None:
             oldState = db.query(State).filter(State.id == stage.state_id).first()
             if not oldState:
@@ -339,8 +344,9 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
             stage, project, history.id, NotificationScheduleType.ETA, payload.eta, db
         )
 
-    # complete_date 실제 완료일 변경
+    # completed_date 실제 완료일 변경
     if payload.completed_date is not None and payload.completed_date != stage.completed_date:
+
         history = _add_history(
             db,
             project_id=project_id,
@@ -352,10 +358,12 @@ def update_project_stage(project_id: int, project_stage_id: int, payload: StageU
             changed_by=current_user
         )
         stage.completed_date = payload.completed_date
+        # 진행 상태도 변경
+        stage.state_id = StateID.COMPLETED
 
         # 알림 발송
         notice_schedule_update(
-            stage, project, history.id, NotificationScheduleType.ACT_DATE, payload.act_date, db
+            stage, project, history.id, NotificationScheduleType.COMPLETED_DATE, payload.completed_date, db
         )
         
     #  note 업무 내용 변경
