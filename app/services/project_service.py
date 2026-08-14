@@ -207,6 +207,7 @@ def create_project(db: Session, payload: ProjectCreateReq, thumbnail: UploadFile
 def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
     projects = (
         db.query(Project)
+        .filter(Project.is_deleted == False)
         .options(
             joinedload(Project.product_group),
             joinedload(Project.owner),
@@ -225,7 +226,7 @@ def get_list_summary_projects(db: Session) -> list[ProjectSummaryRes]:
 def get_project_detail(project_id: int, db: Session) -> ProjectDetailRes:
     
     # 프로젝트
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = db.query(Project).filter(Project.id == project_id).filter(Project.is_deleted == False).first()
     if not project:
         raise project_not_found(project_id)
 
@@ -321,6 +322,7 @@ def get_urgent_project_count(db: Session) -> int:
     # StateID가 IN_PROGRESS인 프로젝트 가져오기
     count = (
         db.query(Project.id)
+        .filter(Project.is_deleted == False)
         .filter(Project.state_id == StateID.IN_PROGRESS)
         .join(Project.stages)
         .filter(Stage.state_id != StateID.COMPLETED)
@@ -344,6 +346,7 @@ def get_urgent_projects(db: Session) -> list[ProjectSummaryRes]:
     
     projects = (
         db.query(Project)
+        .filter(Project.is_deleted == False)
         .filter(Project.state_id == StateID.IN_PROGRESS)
         .join(Project.stages)
         .filter(Stage.state_id != StateID.COMPLETED)
@@ -373,6 +376,7 @@ def get_projects_by_deadline(db: Session, target_date: date) -> list[ProjectSumm
     projects = (
         db.query(Project)
         .filter(Project.state_id == StateID.IN_PROGRESS)
+        .filter(Project.is_deleted == False)
         .join(Project.stages)
         .filter(Stage.state_id != StateID.COMPLETED)
         .filter(func.date(Stage.due_date) == target_date)  # 특정 날짜만
@@ -404,6 +408,7 @@ def get_my_projects(db: Session, current_user: User) -> list[ProjectSummaryRes]:
             joinedload(Project.stages).joinedload(Stage.stage_owner),
         )
         .filter(Project.owner_id == current_user.id)
+        .filter(Project.is_deleted == False)
         .order_by(Project.id.desc())
         .all()
     )
@@ -511,6 +516,7 @@ def get_my_related_projects(db: Session, current_user: User) -> list[ProjectSumm
         .distinct()
         .join(Stage, Project.id == Stage.project_id)
         .filter(Stage.stage_owner_id == current_user.id)
+        .filter(Project.is_deleted == False)
         .options(
             joinedload(Project.product_group),
             joinedload(Project.state),
